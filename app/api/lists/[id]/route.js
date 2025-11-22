@@ -5,6 +5,7 @@ import Task from '../../../../models/Task';
 import jwt from 'jsonwebtoken';
 import logger from '../../../../lib/logger';
 import Board from '../../../../models/Board';
+import { canPerform } from '../../../../lib/permissions';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -46,12 +47,10 @@ export async function DELETE(req, context) {
     return NextResponse.json({ error: 'List not found' }, { status: 404 });
   }
 
-  // permission: check board membership
+  // permission: only owner or global admin may delete lists
   try {
     const board = await Board.findById(list.boardId);
-    const isOwner = board && String(board.owner) === String(user.id);
-    const isMember = board && Array.isArray(board.members) && board.members.map(m => String(m)).includes(String(user.id));
-    if (!(user.role === 'admin' || isOwner || isMember)) {
+    if (!canPerform(user, board, 'deleteList')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
   } catch (e) {
@@ -69,17 +68,17 @@ export async function DELETE(req, context) {
     await connectToDatabase();
     const Activity = (await import('../../../../models/Activity')).default;
     // user is available from earlier
-    await Activity.create({ boardId: list.boardId, userId: user.id, action: 'list.deleted', details: `${user.email} deleted list "${list.title}"` });
-    try {
-      const SOCKET_SERVER = process.env.SOCKET_SERVER_URL || 'http://localhost:4001';
-      await fetch(`${SOCKET_SERVER}/broadcast`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event: 'activity:created', boardId: list.boardId, data: { action: 'list.deleted', userId: user.id, details: `${user.email} deleted list "${list.title}"` } }),
-      });
-    } catch (e) {}
+    const activity = await Activity.create({ boardId: list.boardId, userId: user.id, action: 'list.deleted', details: `${user.email} deleted list "${list.title}"` });
+    // broadcast activity with populated user info
+    const populatedActivity = await Activity.findById(activity._id).populate('userId', 'name email');
+    const SOCKET_SERVER = process.env.SOCKET_SERVER_URL || 'http://localhost:4001';
+    await fetch(`${SOCKET_SERVER}/broadcast`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event: 'activity:created', boardId: list.boardId, data: populatedActivity }),
+    });
   } catch (err) {
-    console.error('activity create failed', err);
+    logger.error(err, 'activity create failed');
   }
 
   return NextResponse.json({ success: true }, { status: 200 });

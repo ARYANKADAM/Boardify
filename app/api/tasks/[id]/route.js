@@ -7,6 +7,7 @@ import Board from '../../../../models/Board';
 import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import logger from '../../../../lib/logger';
+import { canPerform } from '../../../../lib/permissions';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -46,6 +47,16 @@ export async function PUT(req, context) {
   if (!task)
     return NextResponse.json({ error: 'Task not found' }, { status: 404 });
 
+  // permission: ensure user can delete this task
+  try {
+    const board = await Board.findById((await List.findById(task.listId))?.boardId);
+    if (!canPerform(user, board, 'deleteTask')) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+  } catch (e) {
+    logger.error(e, 'permission check failed for task delete');
+  }
+
   // Determine boardId for permission checks (use destination if provided)
   let boardId = null;
   try {
@@ -62,9 +73,7 @@ export async function PUT(req, context) {
 
   if (boardId) {
     const board = await Board.findById(boardId);
-    const isOwner = board && String(board.owner) === String(user.id);
-    const isMember = board && Array.isArray(board.members) && board.members.map(m => String(m)).includes(String(user.id));
-    if (!(user.role === 'admin' || isOwner || isMember)) {
+    if (!canPerform(user, board, 'editTask')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
   }
@@ -163,14 +172,17 @@ export async function PUT(req, context) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ event: 'task:moved', boardId, data: { taskId: task._id, listId: task.listId, position: task.position } }),
     });
-    // create activity
-      try {
-      await Activity.create({ boardId, userId: user.id, action: 'task.moved', details: `${user.email} moved task "${task.title}" to list ${task.listId}` });
-      // broadcast activity
+    // create activity (include destination list title for readability)
+    try {
+      const destListTitle = destList && destList.title ? destList.title : String(task.listId);
+      const details = `${user.email} moved task "${task.title}" to list "${destListTitle}"`;
+      const activity = await Activity.create({ boardId, userId: user.id, action: 'task.moved', details });
+      // broadcast activity with populated user info
+      const populatedActivity = await Activity.findById(activity._id).populate('userId', 'name email');
       await fetch(`${SOCKET_SERVER}/broadcast`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event: 'activity:created', boardId, data: { action: 'task.moved', userId: user.id, details: `${user.email} moved task "${task.title}" to list ${task.listId}` } }),
+        body: JSON.stringify({ event: 'activity:created', boardId, data: populatedActivity }),
       });
     } catch (e) {
       logger.error(e, 'activity create failed');
@@ -202,6 +214,19 @@ export async function DELETE(req, context) {
   if (!task)
     return NextResponse.json({ error: 'Task not found' }, { status: 404 });
 
+  // permission: ensure user can delete this task
+  try {
+    const list = await List.findById(task.listId);
+    const board = list ? await Board.findById(list.boardId) : null;
+    if (!board) return NextResponse.json({ error: 'Board not found' }, { status: 404 });
+    if (!canPerform(user, board, 'deleteTask')) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+  } catch (e) {
+    logger.error(e, 'permission check failed for task delete');
+    return NextResponse.json({ error: 'Permission check failed' }, { status: 500 });
+  }
+
   // Remove from list.tasks[] array
   await List.findByIdAndUpdate(task.listId, {
     $pull: { tasks: task._id },
@@ -232,11 +257,13 @@ export async function DELETE(req, context) {
       body: JSON.stringify({ event: 'task:deleted', boardId, data: { taskId: task._id } }),
     });
     try {
-      await Activity.create({ boardId, userId: user.id, action: 'task.deleted', details: `${user.email} deleted task "${task.title}"` });
+      const activity = await Activity.create({ boardId, userId: user.id, action: 'task.deleted', details: `${user.email} deleted task "${task.title}"` });
+      // broadcast activity with populated user info
+      const populatedActivity = await Activity.findById(activity._id).populate('userId', 'name email');
       await fetch(`${SOCKET_SERVER}/broadcast`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event: 'activity:created', boardId, data: { action: 'task.deleted', userId: user.id, details: `${user.email} deleted task "${task.title}"` } }),
+        body: JSON.stringify({ event: 'activity:created', boardId, data: populatedActivity }),
       });
     } catch (e) {
       logger.error(e, 'activity create failed');

@@ -7,15 +7,20 @@
     "build": "next build",
     "start": "next start",
     "start-socket": "node server-socket.js",
-    "lint": "eslint"
+    "lint": "eslint",
+    "migrate:members": "node ./scripts/migrate-members.mjs"
   },
   "dependencies": {
+    "@fullcalendar/daygrid": "^6.1.19",
+    "@fullcalendar/interaction": "^6.1.19",
+    "@fullcalendar/react": "^6.1.19",
     "@sentry/node": "^10.26.0",
     "bcryptjs": "^3.0.3",
     "dotenv": "^16.1.4",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.20.0",
+    "multer": "^2.0.2",
     "next": "16.0.3",
     "react": "19.2.0",
     "react-dom": "19.2.0",

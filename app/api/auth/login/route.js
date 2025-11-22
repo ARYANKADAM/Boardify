@@ -14,6 +14,7 @@ export async function POST(req) {
   if (!user) return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
   const valid = await bcrypt.compare(password, user.password);
   if (!valid) return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
-  const token = jwt.sign({ id: user._id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
-  return NextResponse.json({ token, user: { id: user._id, name: user.name, email: user.email, avatar: user.avatar, role: user.role } }, { status: 200 });
+  const role = (user.role || 'member').toString().toLowerCase();
+  const token = jwt.sign({ id: user._id, email: user.email, role }, JWT_SECRET, { expiresIn: '7d' });
+  return NextResponse.json({ token, user: { id: user._id, name: user.name, email: user.email, avatar: user.avatar, role } }, { status: 200 });
 }

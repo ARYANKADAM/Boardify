@@ -5,6 +5,7 @@ import List from '../../../models/List';
 import Activity from '../../../models/Activity';
 import jwt from 'jsonwebtoken';
 import logger from '../../../lib/logger';
+import { canPerform } from '../../../lib/permissions';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -25,24 +26,31 @@ export async function POST(req) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { listId, title, description, assignedTo, dueDate, priority, position } = await req.json();
   if (!listId || !title) return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
-  // permission: check board membership
+  // permission: members (and owner/admin) may create tasks
+  let list = null;
   try {
-    const list = await List.findById(listId);
+    list = await List.findById(listId);
+    if (!list) return NextResponse.json({ error: 'List not found' }, { status: 404 });
+    const Board = (await import('../../../models/Board')).default;
     const boardId = list ? String(list.boardId) : null;
-    if (boardId) {
-      const Board = (await import('../../../models/Board')).default;
-      const board = await Board.findById(boardId);
-      const isOwner = board && String(board.owner) === String(user.id);
-      const isMember = board && Array.isArray(board.members) && board.members.map(m => String(m)).includes(String(user.id));
-      if (!(user.role === 'admin' || isOwner || isMember)) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-      }
+    if (!boardId) return NextResponse.json({ error: 'Board not found' }, { status: 404 });
+    const board = await Board.findById(boardId);
+    if (!board) return NextResponse.json({ error: 'Board not found' }, { status: 404 });
+    if (!canPerform(user, board, 'createTask')) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
   } catch (e) {
     logger.error(e, 'permission check failed for task create');
+    return NextResponse.json({ error: 'Permission check failed' }, { status: 500 });
   }
+
   const task = await Task.create({ listId, title, description, assignedTo, dueDate, priority, position });
-  await List.findByIdAndUpdate(listId, { $push: { tasks: task._id } });
+  // update the list tasks array (use the already-fetched list)
+  try {
+    await List.findByIdAndUpdate(listId, { $push: { tasks: task._id } });
+  } catch (e) {
+    logger.error(e, 'failed to push task into list');
+  }
   // Broadcast to socket server (best-effort)
   try {
     const SOCKET_SERVER = process.env.SOCKET_SERVER_URL || 'http://localhost:4001';
@@ -59,17 +67,14 @@ export async function POST(req) {
   }
   // Create activity
   try {
-    await Activity.create({ boardId, userId: user.id, action: 'task.created', details: `${user.email} created task "${title}"` });
-    // broadcast activity as well
-    try {
-      await fetch(`${SOCKET_SERVER}/broadcast`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event: 'activity:created', boardId, data: { action: 'task.created', userId: user.id, details: `${user.email} created task "${title}"` } }),
-      });
-    } catch (e) {
-      // ignore
-    }
+    const activity = await Activity.create({ boardId, userId: user.id, action: 'task.created', details: `${user.email} created task "${title}"` });
+    // broadcast activity with populated user info
+    const populatedActivity = await Activity.findById(activity._id).populate('userId', 'name email');
+    await fetch(`${SOCKET_SERVER}/broadcast`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event: 'activity:created', boardId, data: populatedActivity }),
+    });
   } catch (err) {
     logger.error(err, 'activity create failed');
   }

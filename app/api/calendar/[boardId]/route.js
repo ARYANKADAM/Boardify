@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '../../../../lib/mongodb';
-import Activity from '../../../../models/Activity';
-import List from '../../../../models/List';
+import Task from '../../../../models/Task';
 import jwt from 'jsonwebtoken';
 import Board from '../../../../models/Board';
 import logger from '../../../../lib/logger';
@@ -24,12 +23,16 @@ export async function GET(req, context) {
   const user = getUserFromToken(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  // In some Next.js versions `context.params` is a Promise — await it to be safe
   const params = context && context.params ? await context.params : {};
   const { boardId } = params || {};
   if (!boardId) return NextResponse.json({ error: 'Missing boardId' }, { status: 400 });
 
-  // Ensure requesting user is a member/owner or global admin of this board
+  // query params: from, to (ISO date strings)
+  const url = new URL(req.url);
+  const from = url.searchParams.get('from');
+  const to = url.searchParams.get('to');
+
+  // permission check: user must be member/owner/global admin
   try {
     const board = await Board.findById(boardId);
     if (!board) return NextResponse.json({ error: 'Board not found' }, { status: 404 });
@@ -43,45 +46,27 @@ export async function GET(req, context) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
   } catch (e) {
-    logger.error(e, 'permission check failed for activity.get');
+    logger.error(e, 'permission check failed for calendar.get');
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 
-  let activities = await Activity.find({ boardId }).sort({ timestamp: -1 }).limit(100).populate('userId', 'name email');
-
-  try {
-    // Replace any 24-hex ObjectId occurrences in activity.details with the corresponding list title
-    const idRegex = /([0-9a-fA-F]{24})/g;
-    const ids = new Set();
-    activities.forEach(a => {
-      if (a && a.details && typeof a.details === 'string') {
-        const matches = a.details.match(idRegex);
-        if (matches) matches.forEach(m => ids.add(m));
-      }
-    });
-
-    if (ids.size > 0) {
-      const idArray = Array.from(ids);
-      const lists = await List.find({ _id: { $in: idArray } }).select('title');
-      const titleMap = {};
-      lists.forEach(l => { titleMap[String(l._id)] = l.title; });
-
-      // mutate activity.details for presentation
-      activities = activities.map(a => {
-        if (a && a.details && typeof a.details === 'string') {
-          let d = a.details;
-          d = d.replace(idRegex, (match) => {
-            if (titleMap[match]) return `"${titleMap[match]}"`;
-            return match;
-          });
-          return { ...a.toObject ? a.toObject() : a, details: d };
-        }
-        return a;
-      });
-    }
-  } catch (e) {
-    logger.error(e, 'failed to resolve list titles for activities');
+  // Build date filter
+  const filter = { boardId };
+  if (from || to) filter.dueDate = {};
+  if (from) {
+    const fromDate = new Date(from);
+    if (!isNaN(fromDate)) filter.dueDate.$gte = fromDate;
+  }
+  if (to) {
+    const toDate = new Date(to);
+    if (!isNaN(toDate)) filter.dueDate.$lte = toDate;
   }
 
-  return NextResponse.json({ activities }, { status: 200 });
+  try {
+    const tasks = await Task.find(filter).select('title dueDate listId _id');
+    return NextResponse.json({ tasks }, { status: 200 });
+  } catch (e) {
+    logger.error(e, 'failed to fetch calendar tasks');
+    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+  }
 }
