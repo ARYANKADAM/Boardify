@@ -1,6 +1,7 @@
 'use client';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import CalendarIntegrations from './CalendarIntegrations';
 
 export default function CalendarView({ boardId }) {
   const router = useRouter();
@@ -11,28 +12,34 @@ export default function CalendarView({ boardId }) {
   const [viewMode, setViewMode] = useState('month'); // 'month' or 'week'
   const [FullCalendarComp, setFullCalendarComp] = useState(null);
   const [plugins, setPlugins] = useState(null);
+  const [showIntegrations, setShowIntegrations] = useState(false);
   const calendarRef = useRef(null);
 
   async function fetchEvents(from, to) {
     setLoading(true);
     setError(null);
+    console.log('CalendarView: fetchEvents called with boardId:', boardId, 'from:', from, 'to:', to);
     try {
       const url = new URL(`/api/calendar/${encodeURIComponent(boardId)}`, window.location.origin);
       if (from) url.searchParams.set('from', new Date(from).toISOString());
       if (to) url.searchParams.set('to', new Date(to).toISOString());
+      console.log('CalendarView: API URL:', url.toString());
       const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${localStorage.getItem('token') || ''}` } });
       const data = await res.json();
+      console.log('CalendarView: API response status:', res.status, 'data:', data);
       if (!res.ok) throw new Error(data?.error || 'Fetch failed');
-      const mapped = (data.tasks || []).map(t => ({ 
-        id: t._id || t.id, 
-        title: t.title, 
-        start: t.dueDate ? new Date(t.dueDate).toISOString() : null, 
+      const mapped = (data.tasks || []).map(t => ({
+        id: t._id || t.id,
+        title: t.title,
+        start: t.dueDate ? new Date(t.dueDate).toISOString() : null,
         listId: t.listId,
         description: t.description
       }));
+      console.log('CalendarView: Mapped events:', mapped);
       setEvents(mapped);
       return mapped;
     } catch (err) {
+      console.error('CalendarView: Fetch error:', err);
       setError(String(err));
       return [];
     } finally {
@@ -78,27 +85,67 @@ export default function CalendarView({ boardId }) {
     await fetchEvents(arg.start, arg.end);
   };
 
-  const handleEventClick = (clickInfo) => {
-    const ev = clickInfo.event;
-    const listId = ev.extendedProps && ev.extendedProps.listId;
-    const taskId = ev.id;
+  const handleEventDrop = useCallback(async (dropInfo) => {
+    const { event } = dropInfo;
+    const newDate = event.start;
+    const taskId = event.id;
+
     try {
-      if (listId) {
-        const el = document.getElementById(`list-${listId}`);
-        if (el && el.scrollIntoView) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          el.style.transition = 'background-color 0.3s';
-          const prev = el.style.backgroundColor;
-          el.style.backgroundColor = '#263238';
-          setTimeout(() => { el.style.backgroundColor = prev; }, 1200);
-          return;
-        }
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/calendar/${boardId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          taskId,
+          newDate: newDate ? newDate.toISOString() : null
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to update task date');
       }
-      router.push(`/board/${boardId}${taskId ? `?task=${taskId}` : ''}`);
-    } catch (e) {
-      alert(`Open task ${taskId || ''} in list ${listId || ''}`);
+
+      const data = await response.json();
+
+      // Update local state
+      setEvents(prev => prev.map(ev =>
+        ev.id === taskId
+          ? { ...ev, start: newDate ? newDate.toISOString() : null }
+          : ev
+      ));
+
+      // Show success notification
+      if (window.addNotification) {
+        window.addNotification('Task date updated successfully!', 'success');
+      }
+
+    } catch (error) {
+      console.error('Failed to update task date:', error);
+      // Revert the drop
+      dropInfo.revert();
+
+      if (window.addNotification) {
+        window.addNotification('Failed to update task date', 'error');
+      }
     }
-  };
+  }, [boardId]);
+
+  const handleEventClick = useCallback((clickInfo) => {
+    const { event } = clickInfo;
+    const taskId = event.id;
+    const listId = event.extendedProps?.listId;
+
+    // Navigate to the board and highlight the task/list
+    if (listId) {
+      router.push(`/board/${boardId}?list=${listId}&task=${taskId}`);
+    } else {
+      router.push(`/board/${boardId}?task=${taskId}`);
+    }
+  }, [boardId, router]);
 
   // Navigation functions for custom calendar
   const goToPrevMonth = () => {
@@ -216,23 +263,58 @@ export default function CalendarView({ boardId }) {
             margin-top: 0.25rem;
           }
         `}</style>
+
+        {/* Integrations Modal */}
+        {showIntegrations && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-gray-900/95 border border-gray-700/50 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+              <div className="flex items-center justify-between p-6 border-b border-gray-700/50">
+                <h2 className="text-xl font-bold text-white">Calendar Integrations</h2>
+                <button
+                  onClick={() => setShowIntegrations(false)}
+                  className="p-2 rounded-lg bg-gray-700/30 hover:bg-gray-700/50 border border-gray-600/30 text-gray-400 hover:text-white transition-all"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+                <CalendarIntegrations boardId={boardId} />
+              </div>
+            </div>
+          </div>
+        )}
+
         <FullCalendar
           ref={calendarRef}
           plugins={plugins}
           initialView="dayGridMonth"
-          events={events.map(e => ({ 
-            id: e.id, 
-            title: e.title, 
-            start: e.start, 
-            extendedProps: { listId: e.listId, description: e.description } 
+          events={events.map(e => ({
+            id: e.id,
+            title: e.title,
+            start: e.start,
+            display: 'block', // Shows as all-day event without time
+            allDay: true,
+            extendedProps: { listId: e.listId, description: e.description }
           }))}
           datesSet={handleDatesSet}
           eventClick={handleEventClick}
-          headerToolbar={{ 
-            left: 'prev,next today', 
-            center: 'title', 
-            right: 'dayGridMonth,dayGridWeek,dayGridDay' 
+          eventDrop={handleEventDrop}
+          editable={true}
+          droppable={true}
+          headerToolbar={{
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,dayGridWeek,dayGridDay settingsButton'
           }}
+          customButtons={{
+            settingsButton: {
+              text: '⚙️',
+              click: () => setShowIntegrations(true)
+            }
+          }}
+          displayEventTime={false}
           height="auto"
         />
       </div>
@@ -289,6 +371,17 @@ export default function CalendarView({ boardId }) {
           
           <div className="flex items-center gap-1.5">
             <button
+              onClick={() => setShowIntegrations(true)}
+              className="p-1.5 rounded-lg bg-gray-700/30 hover:bg-gray-700/50 border border-gray-600/30 text-gray-400 hover:text-white transition-all"
+              title="Calendar Integrations"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </button>
+
+            <button
               onClick={goToPrevMonth}
               className="p-1.5 rounded-lg bg-gray-700/30 hover:bg-gray-700/50 border border-gray-600/30 text-gray-400 hover:text-white transition-all"
               title="Previous Month"
@@ -316,6 +409,28 @@ export default function CalendarView({ boardId }) {
             </button>
           </div>
         </div>
+
+        {/* Integrations Modal */}
+        {showIntegrations && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-gray-900/95 border border-gray-700/50 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+              <div className="flex items-center justify-between p-6 border-b border-gray-700/50">
+                <h2 className="text-xl font-bold text-white">Calendar Integrations</h2>
+                <button
+                  onClick={() => setShowIntegrations(false)}
+                  className="p-2 rounded-lg bg-gray-700/30 hover:bg-gray-700/50 border border-gray-600/30 text-gray-400 hover:text-white transition-all"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+                <CalendarIntegrations boardId={boardId} />
+              </div>
+            </div>
+          </div>
+        )}
 
       {/* Loading/Error States */}
       {loading && (
