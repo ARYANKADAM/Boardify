@@ -21,6 +21,8 @@ const NEXT_APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
 if (!JWT_SECRET) {
   logger.warn('Warning: JWT_SECRET is not set in environment. Socket auth will not work.');
+} else {
+  logger.info('JWT_SECRET is set successfully');
 }
 
 io.use((socket, next) => {
