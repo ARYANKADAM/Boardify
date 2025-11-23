@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "echo 'Skipping build for socket server'",
     "start": "next start",
     "start-socket": "node server-socket.js",
     "lint": "eslint",
