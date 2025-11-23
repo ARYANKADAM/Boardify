@@ -84,6 +84,10 @@ io.on('connection', (socket) => {
 });
 
 // HTTP endpoint to broadcast events from server-side API handlers
+app.get('/', (req, res) => {
+  res.json({ status: 'Socket server running', port: process.env.PORT });
+});
+
 app.post('/broadcast', (req, res) => {
   try {
     const { event, boardId, data } = req.body || {};
