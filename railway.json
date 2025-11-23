@@ -1,9 +1,0 @@
-{
-  "build": {
-    "builder": "NIXPACKS",
-    "buildCommand": "echo 'No build needed for socket server'"
-  },
-  "deploy": {
-    "startCommand": "node server-socket.js"
-  }
-}
