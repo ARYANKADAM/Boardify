@@ -104,7 +104,7 @@ app.post('/broadcast', (req, res) => {
   }
 });
 
-const PORT = process.env.SOCKET_PORT || 4001;
+const PORT = process.env.PORT || 4001;
 server.listen(PORT, () => {
   logger.info(`Socket server listening on ${PORT}`);
 });
