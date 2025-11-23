@@ -23,5 +23,5 @@ const UserSchema = new mongoose.Schema({
     lastSync: { type: Date }
   }
 });
-
+console.log("hello")
 export default mongoose.models.User || mongoose.model('User', UserSchema);
