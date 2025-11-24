@@ -21,8 +21,6 @@ const NEXT_APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
 if (!JWT_SECRET) {
   logger.warn('Warning: JWT_SECRET is not set in environment. Socket auth will not work.');
-} else {
-  logger.info('JWT_SECRET is set successfully');
 }
 
 io.use((socket, next) => {
@@ -86,10 +84,6 @@ io.on('connection', (socket) => {
 });
 
 // HTTP endpoint to broadcast events from server-side API handlers
-app.get('/', (req, res) => {
-  res.json({ status: 'Socket server running', port: process.env.PORT });
-});
-
 app.post('/broadcast', (req, res) => {
   try {
     const { event, boardId, data } = req.body || {};
@@ -110,7 +104,7 @@ app.post('/broadcast', (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 4001;
+const PORT = process.env.SOCKET_PORT || 4001;
 server.listen(PORT, () => {
   logger.info(`Socket server listening on ${PORT}`);
 });
