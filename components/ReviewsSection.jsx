@@ -22,6 +22,8 @@ export default function ReviewsSection() {
   const [comment, setComment] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
 
   useEffect(() => {
     let mounted = true;
@@ -57,9 +59,16 @@ export default function ReviewsSection() {
   async function handleSubmit(e) {
     e.preventDefault();
     try {
+      // Include name/email for anonymous users; fetchWithAuth will attach token if present
+      const body = { rating, comment };
+      if (!isLoggedIn) {
+        if (name) body.name = name;
+        if (email) body.email = email;
+      }
+
       const res = await fetchWithAuth('/api/reviews', {
         method: 'POST',
-        body: JSON.stringify({ rating, comment })
+        body: JSON.stringify(body)
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
@@ -67,6 +76,8 @@ export default function ReviewsSection() {
       setShowModal(false);
       setComment('');
       setRating(5);
+      setName('');
+      setEmail('');
     } catch (err) {
       alert(err.message || 'Failed to add review');
     }
@@ -80,13 +91,13 @@ export default function ReviewsSection() {
       </div>
 
       <div className="relative">
-        <div className="overflow-x-auto no-scrollbar py-6">
-          <div className="flex gap-6" style={{ minWidth: '100%' }}>
+        <div className="overflow-x-auto no-scrollbar py-6 scroll-smooth" aria-label="User reviews carousel">
+          <div className="flex gap-6 snap-x snap-mandatory" style={{ minWidth: 'max-content' }}>
             {loading ? (
               <div className="text-gray-400">Loading reviews…</div>
             ) : (
               reviews.map((r) => (
-                <div key={r._id} className="min-w-[320px] max-w-[34rem] bg-gradient-to-br from-gray-800/80 to-gray-900/80 border border-gray-700/50 rounded-2xl p-6 shadow-xl">
+                <div key={r._id} className="min-w-[320px] max-w-[34rem] snap-start bg-gradient-to-br from-gray-800/80 to-gray-900/80 border border-gray-700/50 rounded-2xl p-6 shadow-xl">
                   <Stars />
                   <p className="italic text-gray-300 mb-6">"{r.comment}"</p>
                   <div className="flex items-center gap-3">
@@ -113,11 +124,9 @@ export default function ReviewsSection() {
         )}
 
         {/* Add Review button for logged-in users */}
-        {isLoggedIn && (
-          <div className="mt-4 text-right">
-            <button onClick={() => setShowModal(true)} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-medium">Add Review</button>
-          </div>
-        )}
+        <div className="mt-4 text-right">
+          <button onClick={() => setShowModal(true)} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-medium">Add Review</button>
+        </div>
       </div>
 
       {/* Modal */}

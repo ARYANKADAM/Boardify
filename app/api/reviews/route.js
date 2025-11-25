@@ -22,27 +22,36 @@ export async function GET(request) {
 // POST /api/reviews - create a new review (requires Bearer token)
 export async function POST(request) {
   try {
-    // verify token from request headers (verifyToken expects the Request)
+    // Try to verify token. If present and valid, post will be attributed to that user.
+    // If not present, accept anonymous submission with optional name/email in the body.
     const user = verifyToken(request);
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
     const body = await request.json();
-    const { rating, comment } = body || {};
+    const { rating, comment, name: submittedName, email: submittedEmail } = body || {};
     if (!rating || !comment) return NextResponse.json({ error: 'Rating and comment are required' }, { status: 400 });
 
     await connectToDatabase();
 
-    // try to fetch fuller user info from DB if available
-    const dbUser = await User.findById(user.id);
-
-    const review = new Review({
-      userId: dbUser ? dbUser._id : user.id,
-      name: dbUser ? dbUser.name : (user.name || user.email || 'Anonymous'),
+    let reviewData = {
       rating: Number(rating),
       comment: String(comment).slice(0, 500)
-    });
+    };
+
+    if (user) {
+      // Authenticated user -> record their DB user id and canonical name (ignore submittedName)
+      const dbUser = await User.findById(user.id);
+      reviewData.userId = dbUser ? dbUser._id : user.id;
+      reviewData.name = dbUser ? dbUser.name : (user.name || user.email || 'Anonymous');
+    } else {
+      // Anonymous submission -> allow name/email fields if provided, but do not link to a userId
+      reviewData.userId = null;
+      reviewData.name = submittedName ? String(submittedName).slice(0, 100) : (submittedEmail ? submittedEmail.split('@')[0] : 'Anonymous');
+      if (submittedEmail) reviewData.email = String(submittedEmail).slice(0, 200);
+    }
+
+    const review = new Review(reviewData);
 
     await review.save();
+    // populate userId (if any) for richer client display
     const populated = await Review.findById(review._id).populate('userId', 'name avatar');
     return NextResponse.json({ review: populated }, { status: 201 });
   } catch (error) {
