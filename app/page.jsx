@@ -136,6 +136,256 @@ export default function LandingPage() {
             </div>
           ))}
         </div>
+
+        {/* Detailed Features Section */}
+        <section id="features" className="py-20">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold text-white mb-4">Everything You Need to Succeed</h2>
+            <p className="text-xl text-gray-400 max-w-3xl mx-auto">
+              Powerful features designed to streamline your workflow and boost team productivity
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
+            {[
+              {
+                icon: "⚡",
+                title: "Real-time Collaboration",
+                desc: "See changes instantly as your team works together. No more wondering if someone updated the board.",
+                features: ["Live task updates", "Instant notifications", "Concurrent editing"]
+              },
+              {
+                icon: "🔐",
+                title: "Advanced Permissions",
+                desc: "Control who can see and edit what with our flexible role-based access system.",
+                features: ["Owner, Admin, Member, Viewer roles", "Board-level permissions", "Granular access control"]
+              },
+              {
+                icon: "🎯",
+                title: "Intuitive Drag & Drop",
+                desc: "Move tasks between lists with smooth animations and instant visual feedback.",
+                features: ["Smooth animations", "Multi-task selection", "Keyboard shortcuts"]
+              },
+              {
+                icon: "📊",
+                title: "Activity Tracking",
+                desc: "Keep track of everything that happens on your boards with detailed activity logs.",
+                features: ["Complete audit trail", "User activity history", "Export capabilities"]
+              },
+              {
+                icon: "📱",
+                title: "Cross-Platform",
+                desc: "Access your boards from any device with our responsive web interface.",
+                features: ["Mobile optimized", "Tablet support", "Desktop experience"]
+              },
+              {
+                icon: "🔗",
+                title: "Integrations",
+                desc: "Connect with your favorite tools and services to streamline your workflow.",
+                features: ["Calendar sync", "Google Workspace", "Microsoft Outlook"]
+              }
+            ].map((feature, i) => (
+              <div
+                key={i}
+                className="group bg-gradient-to-br from-gray-800/50 to-gray-900/50 border border-gray-700/30 rounded-xl p-6 hover:border-purple-500/30 transition-all"
+              >
+                <div className="text-4xl mb-4">{feature.icon}</div>
+                <h3 className="text-xl font-semibold text-white mb-3 group-hover:text-purple-300 transition-colors">
+                  {feature.title}
+                </h3>
+                <p className="text-gray-400 mb-4">{feature.desc}</p>
+                <ul className="space-y-2">
+                  {feature.features.map((item, j) => (
+                    <li key={j} className="flex items-center gap-2 text-sm text-gray-500">
+                      <svg className="w-4 h-4 text-green-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* How It Works Section */}
+        <section className="py-20 bg-gradient-to-r from-purple-900/10 to-indigo-900/10 rounded-3xl border border-gray-800/30">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold text-white mb-4">How It Works</h2>
+            <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+              Get started in minutes with our simple 3-step process
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[
+              {
+                step: "1",
+                title: "Create Your Account",
+                desc: "Sign up with your email and choose your role. We support multiple user types from viewers to owners.",
+                icon: "👤"
+              },
+              {
+                step: "2",
+                title: "Set Up Your Board",
+                desc: "Create your first board, add lists, and invite your team members with appropriate permissions.",
+                icon: "📋"
+              },
+              {
+                step: "3",
+                title: "Start Collaborating",
+                desc: "Add tasks, assign them to team members, and watch your productivity soar with real-time updates.",
+                icon: "🚀"
+              }
+            ].map((step, i) => (
+              <div key={i} className="text-center">
+                <div className="relative mb-6">
+                  <div className="w-20 h-20 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
+                    {step.icon}
+                  </div>
+                  <div className="absolute -top-2 -right-2 w-8 h-8 bg-gradient-to-r from-purple-400 to-indigo-400 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                    {step.step}
+                  </div>
+                </div>
+                <h3 className="text-xl font-semibold text-white mb-3">{step.title}</h3>
+                <p className="text-gray-400">{step.desc}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Testimonials Section */}
+        <section className="py-20">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold text-white mb-4">Loved by Teams Worldwide</h2>
+            <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+              See what our users have to say about their experience with Boardify
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {[
+              {
+                quote: "Boardify transformed how our team collaborates. The real-time updates and intuitive interface made project management effortless.",
+                author: "Sarah Chen",
+                role: "Product Manager",
+                company: "TechCorp",
+                avatar: "SC"
+              },
+              {
+                quote: "The permission system is exactly what we needed. Different roles work perfectly for our diverse team structure.",
+                author: "Marcus Johnson",
+                role: "Team Lead",
+                company: "StartupXYZ",
+                avatar: "MJ"
+              },
+              {
+                quote: "Finally, a tool that doesn't get in the way. Clean design, powerful features, and it just works.",
+                author: "Emily Rodriguez",
+                role: "Designer",
+                company: "CreativeStudio",
+                avatar: "ER"
+              }
+            ].map((testimonial, i) => (
+              <div key={i} className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 border border-gray-700/30 rounded-xl p-6">
+                <div className="flex items-center gap-1 mb-4">
+                  {[...Array(5)].map((_, j) => (
+                    <svg key={j} className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                  ))}
+                </div>
+                <blockquote className="text-gray-300 mb-6 italic">
+                  "{testimonial.quote}"
+                </blockquote>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+                    {testimonial.avatar}
+                  </div>
+                  <div>
+                    <div className="font-semibold text-white">{testimonial.author}</div>
+                    <div className="text-sm text-gray-400">{testimonial.role} at {testimonial.company}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* FAQ Section */}
+        <section className="py-20">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold text-white mb-4">Frequently Asked Questions</h2>
+            <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+              Got questions? We've got answers.
+            </p>
+          </div>
+
+          <div className="max-w-4xl mx-auto space-y-6">
+            {[
+              {
+                question: "Is Boardify free to use?",
+                answer: "Yes! Boardify is completely free for small teams. We offer premium features for larger organizations, but the core functionality remains free."
+              },
+              {
+                question: "How many team members can I add?",
+                answer: "You can add unlimited team members to your boards. The only limitation is based on your plan type for advanced features."
+              },
+              {
+                question: "Can I export my data?",
+                answer: "Absolutely. You can export your boards, tasks, and activity logs in various formats including JSON, CSV, and PDF."
+              },
+              {
+                question: "Is my data secure?",
+                answer: "Security is our top priority. All data is encrypted in transit and at rest. We use industry-standard security practices and regular security audits."
+              },
+              {
+                question: "Can I integrate with other tools?",
+                answer: "Yes! Boardify integrates with popular tools like Google Calendar, Microsoft Outlook, Slack, and many more through our API."
+              },
+              {
+                question: "What browsers are supported?",
+                answer: "Boardify works on all modern browsers including Chrome, Firefox, Safari, and Edge. We recommend keeping your browser updated for the best experience."
+              }
+            ].map((faq, i) => (
+              <div key={i} className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 border border-gray-700/30 rounded-xl p-6">
+                <h3 className="text-lg font-semibold text-white mb-3">{faq.question}</h3>
+                <p className="text-gray-400">{faq.answer}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* CTA Section */}
+        <section className="py-20">
+          <div className="text-center bg-gradient-to-r from-purple-900/20 to-indigo-900/20 rounded-3xl border border-gray-700/30 p-12">
+            <h2 className="text-4xl font-bold text-white mb-4">Ready to Transform Your Workflow?</h2>
+            <p className="text-xl text-gray-400 mb-8 max-w-2xl mx-auto">
+              Join thousands of teams already using Boardify to streamline their project management.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <a
+                href="/register"
+                className="inline-flex items-center justify-center px-8 py-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold shadow-2xl shadow-purple-500/30 transition-all transform hover:scale-105"
+              >
+                Start Your Free Trial
+                <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
+              </a>
+              <a
+                href="/login"
+                className="inline-flex items-center justify-center px-8 py-4 rounded-xl bg-gray-800/50 hover:bg-gray-800 text-gray-200 border border-gray-700/50 backdrop-blur-sm font-medium transition-all"
+              >
+                Sign In to Existing Account
+              </a>
+            </div>
+            <p className="text-sm text-gray-500 mt-6">
+              No credit card required • Free for small teams • 14-day trial for premium features
+            </p>
+          </div>
+        </section>
       </div>
 
       {/* Footer */}
@@ -144,7 +394,7 @@ export default function LandingPage() {
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-2">
               <div className="w-6 h-6 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-lg"></div>
-              <span className="text-sm text-gray-400">© {new Date().getFullYear()} timepass — Built for focused collaboration</span>
+              <span className="text-sm text-gray-400">© {new Date().getFullYear()} Boardify — Built for focused collaboration</span>
             </div>
             <div className="flex gap-6 text-sm text-gray-500">
               <a href="#" className="hover:text-purple-400 transition-colors">Privacy</a>

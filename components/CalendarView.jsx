@@ -59,7 +59,7 @@ export default function CalendarView({ boardId }) {
         try {
           await Promise.all([
             import('@fullcalendar/common/main.css'),
-            import('@fullcalendar/daygrid/main.css'),
+            import('@fullcalendar/daygrid/index.css'),
           ]);
         } catch (cssErr) {
           // ignore

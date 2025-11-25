@@ -8,6 +8,11 @@ const logger = require('./lib/logger.cjs');
 const app = express();
 app.use(express.json());
 
+// Simple health endpoint so a GET / returns a small JSON status
+app.get('/', (req, res) => {
+  res.json({ status: 'Socket server running' });
+});
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
@@ -52,11 +57,35 @@ io.on('connection', (socket) => {
       if (!boardId) return socket.emit('join-denied', { reason: 'missing_boardId' });
 
       // Verify membership by calling the Next.js API with the same token
-      const res = await fetch(`${NEXT_APP_URL}/api/boards`, {
-        headers: { Authorization: `Bearer ${socket.token}` }
-      });
-      if (!res.ok) return socket.emit('join-denied', { reason: 'failed_lookup' });
-      const payload = await res.json();
+      logger.info('join-board: verifying membership', { socketId: socket.id, boardId, appUrl: NEXT_APP_URL });
+      let res;
+      try {
+        res = await fetch(`${NEXT_APP_URL}/api/boards`, {
+          headers: { Authorization: `Bearer ${socket.token}` }
+        });
+      } catch (fetchErr) {
+        logger.error(fetchErr, 'join-board: fetch to /api/boards failed');
+        return socket.emit('join-denied', { reason: 'failed_lookup', detail: 'fetch_failed' });
+      }
+
+      if (!res.ok) {
+        let bodyText = '';
+        try {
+          bodyText = await res.text();
+        } catch (readErr) {
+          logger.error(readErr, 'join-board: failed reading non-ok response body');
+        }
+        logger.error(`join-board: /api/boards returned ${res.status}`, { status: res.status, body: bodyText });
+        return socket.emit('join-denied', { reason: 'failed_lookup', status: res.status, body: bodyText });
+      }
+
+      let payload;
+      try {
+        payload = await res.json();
+      } catch (parseErr) {
+        logger.error(parseErr, 'join-board: failed parsing /api/boards json');
+        return socket.emit('join-denied', { reason: 'failed_lookup', detail: 'invalid_json' });
+      }
       const boards = payload.boards || [];
       const allowed = boards.some(b => String(b._id) === String(boardId));
       if (!allowed) {
@@ -67,8 +96,8 @@ io.on('connection', (socket) => {
       logger.info(`Socket ${socket.id} joined board ${boardId}`);
       socket.emit('joined', { boardId });
     } catch (err) {
-      console.error('join-board error', err);
-      socket.emit('join-denied', { reason: 'error' });
+      logger.error(err, 'join-board error');
+      socket.emit('join-denied', { reason: 'error', message: err && err.message });
     }
   });
 
