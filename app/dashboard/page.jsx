@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { io } from 'socket.io-client';
+import { db } from '../../lib/firebaseClient';
+import { ref, query, orderByChild, startAt, onChildAdded, off } from 'firebase/database';
 
 export default function DashboardPage() {
   const [boards, setBoards] = useState([]);
@@ -16,6 +17,7 @@ export default function DashboardPage() {
   const [mounted, setMounted] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [boardSearch, setBoardSearch] = useState("");
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -34,6 +36,15 @@ export default function DashboardPage() {
       return;
     }
 
+    let currentUserId = null;
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+      currentUserId = payload.id || payload._id;
+      setJwtPayload(payload);
+    } catch (e) {
+      console.error('Failed to parse token payload', e);
+    }
+
     (async () => {
       try {
         const meRes = await fetch('/api/users/me', { headers: { Authorization: `Bearer ${token}` } });
@@ -42,8 +53,6 @@ export default function DashboardPage() {
           setUser(d.user);
           const role = d && d.user && d.user.role ? String(d.user.role).toLowerCase() : null;
           setUserRole(role);
-          const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-          setJwtPayload(payload);
         } else {
           setUserRole(null);
         }
@@ -56,38 +65,37 @@ export default function DashboardPage() {
     fetchNotifications(token);
     setMounted(true);
 
-    // Socket.io connection for real-time notifications
-    const SOCKET_SERVER = process.env.NEXT_PUBLIC_SOCKET_SERVER_URL || 'http://localhost:4001';
-    const socket = io(SOCKET_SERVER, { auth: { token }, transports: ['websocket', 'polling'] });
+    // ----------------------------------------------------
+    //  Firebase RTDB listener for real-time notifications
+    //  (replaces the old socket.io connection)
+    // ----------------------------------------------------
+    if (!currentUserId) return;
 
-    socket.on('connect_error', (err) => {
-      console.error('Dashboard socket connect error', err);
-    });
+    const joinedAt = Date.now();
+    const eventsRef = query(
+      ref(db, `notifications/${currentUserId}/events`),
+      orderByChild('timestamp'),
+      startAt(joinedAt)
+    );
 
-    socket.on('notification:created', (payload) => {
-      if (!payload || !payload.data) return;
-      const notification = payload.data.notification;
-      if (!notification) return;
+    const handleNewEvent = (snapshot) => {
+      const { event, data } = snapshot.val() || {};
+      if (event !== 'notification:created') return;
+      if (!data || !data.notification) return;
 
-      // Check if this notification is for the current user
-      try {
-        const token = localStorage.getItem('token');
-        if (token) {
-          const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-          const userId = payload.id || payload._id;
-          // Compare as strings since notification.userId might be ObjectId
-          if (String(notification.userId) === String(userId)) {
-            // Refresh notifications to get the latest
-            fetchNotifications(token);
-          }
-        }
-      } catch (e) {
-        console.error('Error parsing token for notification check:', e);
+      // Same "is this for me" check as before, kept for safety
+      // (the RTDB path is already user-scoped, so this is now redundant
+      // but harmless to keep as a defensive check)
+      const notification = data.notification;
+      if (String(notification.userId) === String(currentUserId)) {
+        fetchNotifications(token);
       }
-    });
+    };
+
+    onChildAdded(eventsRef, handleNewEvent);
 
     return () => {
-      socket.disconnect();
+      off(eventsRef, 'child_added', handleNewEvent);
     };
   }, []);
 
@@ -235,253 +243,259 @@ export default function DashboardPage() {
     );
   }
 
+  const filteredBoards = boards.filter((board) =>
+    String(board.title || "").toLowerCase().includes(boardSearch.toLowerCase()) ||
+    String(board.description || "").toLowerCase().includes(boardSearch.toLowerCase())
+  );
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 text-gray-100 relative overflow-hidden">
-      {/* Animated background elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 right-20 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-20 left-20 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1.5s'}}></div>
+    <div className="min-h-screen bg-[#0d1018] text-gray-100 relative overflow-hidden">
+      {/* Background glow */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute -top-40 left-1/3 w-[520px] h-[520px] bg-purple-600/10 rounded-full blur-3xl" />
+        <div className="absolute top-1/3 -right-40 w-[420px] h-[420px] bg-indigo-600/10 rounded-full blur-3xl" />
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-8 relative z-10">
-        {/* Header with User Info */}
-        <header className="mb-8">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              {/* User Avatar */}
-              {user?.avatar && (
-                <div className="relative">
-                  <div className="w-16 h-16 rounded-full border-2 border-purple-500/50 p-0.5 bg-gradient-to-br from-purple-500/20 to-indigo-500/20">
-                    <img 
-                      src={user.avatar} 
-                      alt={user.name} 
-                      className="w-full h-full rounded-full object-cover"
-                    />
+      <div className="relative z-10 max-w-6xl mx-auto px-6 sm:px-8 py-8">
+        {/* Top navigation */}
+        <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-16">
+          <div className="flex items-center gap-4 min-w-0">
+            {/* User avatar */}
+            <div className="relative shrink-0">
+              <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-purple-500/70 bg-gradient-to-br from-purple-600/40 to-indigo-600/40 shadow-lg shadow-purple-500/10">
+                {user?.avatar ? (
+                  <img
+                    src={user.avatar}
+                    alt={user.name || "User"}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-2xl font-bold text-purple-200">
+                    {(user?.name || "U").charAt(0).toUpperCase()}
                   </div>
-                  {currentRoleInfo && (
-                    <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-gradient-to-br from-gray-800 to-gray-900 rounded-full flex items-center justify-center text-sm border border-gray-700">
-                      {currentRoleInfo.icon}
-                    </div>
-                  )}
+                )}
+              </div>
+
+              {currentRoleInfo && (
+                <span className="absolute -bottom-1 -right-2 text-xs">
+                  {currentRoleInfo.icon}
+                </span>
+              )}
+            </div>
+
+            <div className="min-w-0">
+              <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white">
+                Welcome, {user?.name || "User"}
+              </h1>
+
+              {userRole && currentRoleInfo && (
+                <div className={`inline-flex items-center gap-2 mt-1.5 px-3 py-1 rounded-full ${currentRoleInfo.bgColor} border ${currentRoleInfo.borderColor}`}>
+                  <span className="text-sm">{currentRoleInfo.icon}</span>
+                  <span className="text-xs font-semibold">
+                    {userRole.charAt(0).toUpperCase() + userRole.slice(1)}
+                  </span>
                 </div>
               )}
-
-              {/* User Info */}
-              <div>
-                <h1 className="text-3xl sm:text-4xl font-extrabold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-                  {user?.name ? `Welcome, ${user.name}` : 'Your Boards'}
-                </h1>
-                {userRole && currentRoleInfo && (
-                  <div className={`inline-flex items-center gap-2 mt-2 px-3 py-1 rounded-full ${currentRoleInfo.bgColor} border ${currentRoleInfo.borderColor}`}>
-                    <span className="text-lg">{currentRoleInfo.icon}</span>
-                    <span className="text-sm font-medium">
-                      {userRole.charAt(0).toUpperCase() + userRole.slice(1)}
-                    </span>
-                  </div>
-                )}
-              </div>
             </div>
+          </div>
 
-            {/* Actions */}
-            <div className="flex items-center gap-3">
-              {/* Notifications Bell */}
-              <div className="relative">
-                <button
-                  onClick={() => setShowNotifications(!showNotifications)}
-                  className="relative p-2 rounded-xl bg-gray-800/50 hover:bg-gray-800 border border-gray-700/50 text-gray-400 hover:text-white transition-all"
-                  title="Notifications"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5v-5zM15 17H9a6 6 0 01-6-6V9a6 6 0 0110.29-4.12L15 9v8z" />
-                  </svg>
-                  {notifications.filter(n => !n.isRead).length > 0 && (
-                    <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-xs font-bold text-white">
-                      {notifications.filter(n => !n.isRead).length}
-                    </div>
-                  )}
-                </button>
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Notifications */}
+            <div className="relative notifications-dropdown">
+              <button
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="relative w-11 h-11 rounded-xl bg-[#171b27] border border-gray-700/60 hover:border-purple-500/50 hover:bg-[#1c2130] flex items-center justify-center text-gray-400 hover:text-white transition-all"
+                title="Notifications"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5v-5zM15 17H9a6 6 0 01-6-6V9a6 6 0 0110.29-4.12L15 9v8z" />
+                </svg>
+                {notifications.filter(n => !n.isRead).length > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 bg-red-500 rounded-full flex items-center justify-center text-[10px] font-bold text-white">
+                    {notifications.filter(n => !n.isRead).length}
+                  </span>
+                )}
+              </button>
 
-                {/* Notifications Dropdown */}
-                {showNotifications && (
-                  <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-gray-800/95 backdrop-blur-xl border border-gray-700/50 rounded-xl shadow-2xl z-50 notifications-dropdown">
-                    <div className="p-4 border-b border-gray-700/50 flex items-center justify-between">
-                      <h3 className="font-semibold text-white">Notifications</h3>
-                      {notifications.filter(n => !n.isRead).length > 0 && (
-                        <button
-                          onClick={markAllAsRead}
-                          className="text-xs text-purple-400 hover:text-purple-300 transition-colors"
+              {showNotifications && (
+                <div className="absolute right-0 top-full mt-3 w-80 sm:w-96 bg-[#151925]/95 backdrop-blur-xl border border-gray-700/60 rounded-2xl shadow-2xl z-50 overflow-hidden">
+                  <div className="p-4 border-b border-gray-700/50 flex items-center justify-between">
+                    <h3 className="font-semibold text-white">Notifications</h3>
+                    {notifications.filter(n => !n.isRead).length > 0 && (
+                      <button
+                        onClick={markAllAsRead}
+                        className="text-xs text-purple-400 hover:text-purple-300 transition-colors"
+                      >
+                        Mark all read
+                      </button>
+                    )}
+                  </div>
+                  <div className="max-h-96 overflow-y-auto">
+                    {notifications.length === 0 ? (
+                      <div className="p-5 text-center text-gray-500">No notifications yet</div>
+                    ) : (
+                      notifications.map(notification => (
+                        <div
+                          key={notification._id}
+                          className={`p-4 border-b border-gray-700/30 hover:bg-gray-700/20 transition-colors ${!notification.isRead ? 'bg-purple-500/5' : ''}`}
                         >
-                          Mark all read
-                        </button>
-                      )}
-                    </div>
-                    <div className="max-h-96 overflow-y-auto">
-                      {notifications.length === 0 ? (
-                        <div className="p-4 text-center text-gray-500">
-                          <svg className="w-8 h-8 mx-auto mb-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5v-5zM15 17H9a6 6 0 01-6-6V9a6 6 0 0110.29-4.12L15 9v8z" />
-                          </svg>
-                          No notifications yet
-                        </div>
-                      ) : (
-                        notifications.map(notification => (
-                          <div
-                            key={notification._id}
-                            className={`p-4 border-b border-gray-700/30 hover:bg-gray-700/30 transition-colors ${
-                              !notification.isRead ? 'bg-blue-500/10' : ''
-                            }`}
-                          >
-                            <div className="flex items-start gap-3">
-                              <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-2 ${
-                                notification.type === 'mention' ? 'bg-blue-500' :
-                                notification.type === 'comment' ? 'bg-green-500' :
-                                notification.type === 'task_assigned' ? 'bg-purple-500' :
-                                notification.type === 'due_date' ? 'bg-red-500' :
-                                'bg-gray-500'
-                              }`} />
-                              <div className="flex-1">
-                                <p className="text-sm text-gray-200">{notification.message}</p>
-                                <p className="text-xs text-gray-500 mt-1">
-                                  {new Date(notification.createdAt).toLocaleString()}
-                                </p>
-                              </div>
+                          <div className="flex items-start gap-3">
+                            <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-2 ${
+                              notification.type === 'mention' ? 'bg-blue-500' :
+                              notification.type === 'comment' ? 'bg-green-500' :
+                              notification.type === 'task_assigned' ? 'bg-purple-500' :
+                              notification.type === 'due_date' ? 'bg-red-500' :
+                              'bg-gray-500'
+                            }`} />
+                            <div className="flex-1">
+                              <p className="text-sm text-gray-200">{notification.message}</p>
+                              <p className="text-xs text-gray-500 mt-1">
+                                {new Date(notification.createdAt).toLocaleString()}
+                              </p>
                             </div>
                           </div>
-                        ))
-                      )}
-                    </div>
+                        </div>
+                      ))
+                    )}
                   </div>
-                )}
-              </div>
-
-              <a 
-                href="/"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-800/50 hover:bg-gray-800 border border-gray-700/50 text-gray-300 hover:text-white transition-all"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                </svg>
-                Home
-              </a>
-              <button 
-                onClick={handleLogout} 
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600/80 hover:bg-red-600 text-white font-medium transition-all shadow-lg shadow-red-500/20"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-                Logout
-              </button>
+                </div>
+              )}
             </div>
+
+            {/* Search */}
+            <div className="relative hidden sm:block">
+              <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35m1.35-5.65a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                value={boardSearch}
+                onChange={(e) => setBoardSearch(e.target.value)}
+                placeholder="Search"
+                className="w-48 lg:w-52 h-11 pl-11 pr-4 rounded-xl bg-[#171b27] border border-gray-700/60 focus:border-purple-500/60 focus:outline-none text-sm text-gray-200 placeholder-gray-500 transition-all"
+              />
+            </div>
+
+            <a
+              href="/"
+              className="hidden sm:inline-flex items-center gap-2 h-11 px-4 rounded-xl bg-[#171b27] border border-gray-700/60 hover:border-gray-500 text-gray-300 hover:text-white transition-all"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10.5L12 3l9 7.5M5 9.5V21h14V9.5M9 21v-6h6v6" />
+              </svg>
+              Home
+            </a>
+
+            <button
+              onClick={handleLogout}
+              className="h-11 px-4 rounded-xl bg-[#171b27] border border-gray-700/60 hover:border-red-500/40 hover:bg-red-500/10 text-gray-300 hover:text-red-300 transition-all"
+            >
+              Logout
+            </button>
           </div>
         </header>
 
-        {/* Create Board Section */}
-        {(userRole === 'admin' || userRole === 'owner') && (
-          <div className="mb-8">
-            <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-purple-600/10 to-indigo-600/10 rounded-2xl blur-xl"></div>
-              <div className="relative bg-gradient-to-br from-gray-800/80 to-gray-900/80 border border-gray-700/50 rounded-2xl p-6 backdrop-blur-xl">
-                {!showCreateForm ? (
-                  <button
-                    onClick={() => setShowCreateForm(true)}
-                    className="w-full flex items-center justify-center gap-3 py-4 rounded-xl border-2 border-dashed border-gray-600 hover:border-purple-500 text-gray-400 hover:text-purple-400 transition-all group"
-                  >
-                    <svg className="w-6 h-6 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                    <span className="font-medium">Create New Board</span>
-                  </button>
-                ) : (
-                  <div>
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-xl font-bold text-white">Create New Board</h3>
-                      <button
-                        onClick={() => setShowCreateForm(false)}
-                        className="text-gray-400 hover:text-white transition-colors"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">Board Title</label>
-                        <input
-                          type="text"
-                          placeholder="Enter board title"
-                          value={title}
-                          onChange={(e) => setTitle(e.target.value)}
-                          className="w-full p-3 bg-gray-900/50 border border-gray-700 rounded-xl text-gray-100 placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">Description (optional)</label>
-                        <textarea
-                          placeholder="Enter board description"
-                          value={description}
-                          onChange={(e) => setDescription(e.target.value)}
-                          rows="3"
-                          className="w-full p-3 bg-gray-900/50 border border-gray-700 rounded-xl text-gray-100 placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all resize-none"
-                        />
-                      </div>
-                      {error && (
-                        <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center gap-2">
-                          <svg className="w-5 h-5 text-red-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                          </svg>
-                          <span className="text-red-400 text-sm">{error}</span>
-                        </div>
-                      )}
-                      <button
-                        onClick={handleCreateBoard}
-                        className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 rounded-xl text-white font-semibold shadow-lg shadow-purple-500/30 transition-all"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                        Create Board
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Quick Register Section */}
         {process.env.NEXT_PUBLIC_ALLOW_SELF_ADMIN === 'true' && (
-          <div className="mb-8 p-4 bg-gray-800/50 border border-gray-700/50 rounded-xl backdrop-blur-sm">
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-              <span className="text-sm text-gray-400 mr-2">Quick Register:</span>
-              <button onClick={() => goToRegisterWithRole('owner')} className="px-2 sm:px-3 py-1.5 bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/30 text-amber-300 rounded-lg text-xs sm:text-sm transition-all">
+          <div className="mb-8 p-4 bg-[#151925] border border-gray-700/60 rounded-2xl">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-gray-500 mr-2">Quick Register:</span>
+              <button onClick={() => goToRegisterWithRole('owner')} className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 text-amber-300 rounded-lg text-xs transition-all">
                 👑 Owner
               </button>
-              <button onClick={() => goToRegisterWithRole('admin')} className="px-2 sm:px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 rounded-lg text-xs sm:text-sm transition-all">
+              <button onClick={() => goToRegisterWithRole('admin')} className="px-3 py-1.5 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/25 text-purple-300 rounded-lg text-xs transition-all">
                 ⚡ Admin
               </button>
-              <button onClick={() => goToRegisterWithRole('member')} className="px-2 sm:px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-300 rounded-lg text-xs sm:text-sm transition-all">
+              <button onClick={() => goToRegisterWithRole('member')} className="px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/25 text-blue-300 rounded-lg text-xs transition-all">
                 ✏️ Member
               </button>
-              <button onClick={() => goToRegisterWithRole('viewer')} className="px-2 sm:px-3 py-1.5 bg-gray-600/20 hover:bg-gray-600/30 border border-gray-500/30 text-gray-300 rounded-lg text-xs sm:text-sm transition-all">
+              <button onClick={() => goToRegisterWithRole('viewer')} className="px-3 py-1.5 bg-gray-500/10 hover:bg-gray-500/20 border border-gray-500/25 text-gray-300 rounded-lg text-xs transition-all">
                 👁️ Viewer
               </button>
             </div>
           </div>
         )}
 
-        {/* Boards Grid */}
-        <div>
-          <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
-            <svg className="w-7 h-7 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
-            </svg>
-            Your Boards
-            <span className="text-sm font-normal text-gray-500">({boards.length})</span>
-          </h2>
+        {/* Boards section */}
+        <section>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl sm:text-3xl font-bold text-white">
+              Your Boards
+            </h2>
+
+            {(userRole === 'admin' || userRole === 'owner') && (
+              <button
+                onClick={() => setShowCreateForm(true)}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold shadow-lg shadow-purple-500/20 transition-all"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                New Board
+              </button>
+            )}
+          </div>
+
+          {/* Create board modal */}
+          {showCreateForm && (userRole === 'admin' || userRole === 'owner') && (
+            <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="w-full max-w-lg bg-[#151925] border border-gray-700/70 rounded-2xl shadow-2xl p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <h3 className="text-xl font-bold text-white">Create New Board</h3>
+                  <button
+                    onClick={() => setShowCreateForm(false)}
+                    className="w-9 h-9 rounded-lg hover:bg-gray-800 flex items-center justify-center text-gray-400 hover:text-white"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <form onSubmit={handleCreateBoard} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Board Title</label>
+                    <input
+                      type="text"
+                      placeholder="Enter board title"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      className="w-full p-3 bg-[#0f131d] border border-gray-700 rounded-xl text-gray-100 placeholder-gray-500 focus:outline-none focus:border-purple-500 transition-all"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Description</label>
+                    <textarea
+                      placeholder="Enter board description"
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      rows="3"
+                      className="w-full p-3 bg-[#0f131d] border border-gray-700 rounded-xl text-gray-100 placeholder-gray-500 focus:outline-none focus:border-purple-500 transition-all resize-none"
+                    />
+                  </div>
+
+                  {error && (
+                    <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+                      {error}
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold transition-all"
+                  >
+                    Create Board
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {error && !showCreateForm && (
+            <div className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400">
+              {error}
+            </div>
+          )}
 
           {loading ? (
             <div className="flex items-center justify-center py-20">
@@ -492,99 +506,232 @@ export default function DashboardPage() {
             </div>
           ) : boards.length === 0 ? (
             <div className="text-center py-20">
-              <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gray-800/50 border border-gray-700 mb-4">
+              <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-[#171b27] border border-gray-700 mb-4">
                 <svg className="w-10 h-10 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </div>
               <h3 className="text-xl font-semibold text-gray-300 mb-2">No boards yet</h3>
               <p className="text-gray-500">
-                {userRole === 'admin' || userRole === 'owner' 
-                  ? 'Create your first board to get started!' 
+                {userRole === 'admin' || userRole === 'owner'
+                  ? 'Create your first board to get started!'
                   : 'Boards will appear here once created by admins or owners.'}
               </p>
             </div>
+          ) : filteredBoards.length === 0 ? (
+            <div className="text-center py-16 text-gray-500">
+              No boards match "{boardSearch}"
+            </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {boards.map((board) => {
-                // Derive current role (prefer `user` from API, fallback to localStorage)
-                const currentRole = user && user.role ? String(user.role).toLowerCase() : (userRole || null);
-                // Derive current user id from JWT payload or `user` object
-                const currentUserId = (jwtPayload && (jwtPayload.id || jwtPayload._id)) || (user && (user._id || user.id));
-                // Board owner can be an id string or a populated object; normalize to id string
-                const boardOwnerId = board && (typeof board.owner === 'string' ? board.owner : (board.owner?._id || board.owner?.id));
-                // If the board.owner is populated, capture their role too
-                const boardOwnerRole = board && (typeof board.owner === 'object' ? (board.owner?.role ? String(board.owner.role).toLowerCase() : null) : null);
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {filteredBoards.map((board) => {
+                const currentRole = user && user.role
+                  ? String(user.role).toLowerCase()
+                  : (userRole || null);
 
-                // Permission rules:
-                // - If current user is `owner`: they can delete boards they created OR boards created by admins.
-                // - If current user is `admin`: they can only delete boards they created.
+                const currentUserId =
+                  (jwtPayload && (jwtPayload.id || jwtPayload._id)) ||
+                  (user && (user._id || user.id));
+
+                const boardOwnerId =
+                  board && (
+                    typeof board.owner === 'string'
+                      ? board.owner
+                      : (board.owner?._id || board.owner?.id)
+                  );
+
+                const boardOwnerRole =
+                  board && typeof board.owner === 'object'
+                    ? (board.owner?.role ? String(board.owner.role).toLowerCase() : null)
+                    : null;
+
                 let canDelete = false;
+
                 if (currentRole === 'owner') {
-                  if (currentUserId && boardOwnerId && String(boardOwnerId) === String(currentUserId)) {
+                  if (
+                    currentUserId &&
+                    boardOwnerId &&
+                    String(boardOwnerId) === String(currentUserId)
+                  ) {
                     canDelete = true;
                   } else if (boardOwnerRole === 'admin') {
                     canDelete = true;
                   }
                 } else if (currentRole === 'admin') {
-                  if (currentUserId && boardOwnerId && String(boardOwnerId) === String(currentUserId)) {
+                  if (
+                    currentUserId &&
+                    boardOwnerId &&
+                    String(boardOwnerId) === String(currentUserId)
+                  ) {
                     canDelete = true;
                   }
                 }
-                const isDeleting = deletingBoardId === board._id;
-                
-                return (
-                  <div key={board._id} className="group relative">
-                    <div className="absolute inset-0 bg-gradient-to-br from-purple-600/10 to-indigo-600/10 rounded-2xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                    <div className="relative bg-gradient-to-br from-gray-800/80 to-gray-900/80 border border-gray-700/50 rounded-2xl p-6 backdrop-blur-xl hover:border-purple-500/50 transition-all">
-                      
-                      {/* Delete Button - Top Right */}
-                      {canDelete && (
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            handleDeleteBoard(board._id, board.title);
-                          }}
-                          disabled={isDeleting}
-                          className="absolute top-4 right-4 z-10 p-2 rounded-lg bg-red-600/20 hover:bg-red-600/40 border border-red-500/30 text-red-400 hover:text-red-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                          title="Delete board"
-                        >
-                          {isDeleting ? (
-                            <div className="w-4 h-4 border-2 border-red-500/30 border-t-red-500 rounded-full animate-spin"></div>
-                          ) : (
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          )}
-                        </button>
-                      )}
 
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex-1 pr-8">
-                          <h3 className="font-bold text-lg text-white mb-2 line-clamp-2">{board.title}</h3>
-                          {board.description && (
-                            <p className="text-gray-400 text-sm line-clamp-2">{board.description}</p>
-                          )}
-                        </div>
-                
-                      </div>
-                      
-                      <a 
-                        href={`/board/${board._id}`} 
-                        className="inline-flex items-center justify-center w-full gap-2 px-4 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 rounded-xl text-white font-medium shadow-lg shadow-purple-500/20 transition-all group-hover:scale-[1.02]"
-                      >
-                        Open Board
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                        </svg>
-                      </a>
-                    </div>
-                  </div>
+                const isDeleting = deletingBoardId === board._id;
+
+                // Board.members is the list of users currently added to this board.
+                // The owner is intentionally not counted here.
+                const memberCount = Array.isArray(board.members)
+                  ? board.members.length
+                  : 0;
+
+                return (
+                 <div key={board._id} className="group relative">
+  {/* Purple hover glow */}
+  <div className="absolute inset-0 rounded-2xl bg-purple-600/10 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+  <div className="relative min-h-[250px] flex flex-col bg-[#171b29] border border-gray-700/60 rounded-2xl p-5 hover:border-purple-500/40 transition-all duration-300">
+
+    {/* Header */}
+    <div className="flex items-start justify-between gap-4">
+
+      {/* Title + description */}
+      <div className="min-w-0 flex-1">
+        <h3 className="text-xl font-semibold text-white truncate">
+          {board.title}
+        </h3>
+
+        {board.description ? (
+          <p className="text-sm text-gray-400 mt-2 line-clamp-2">
+            {board.description}
+          </p>
+        ) : (
+          <p className="text-sm text-gray-500 mt-2">
+            No description
+          </p>
+        )}
+      </div>
+
+      {/* Delete button */}
+      {canDelete && (
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            handleDeleteBoard(board._id, board.title);
+          }}
+          disabled={isDeleting}
+          className="
+            flex-shrink-0
+            w-10 h-10
+            flex items-center justify-center
+            rounded-xl
+            bg-red-500/10
+            border border-red-500/30
+            text-red-400
+            hover:bg-red-500/20
+            hover:border-red-500/50
+            hover:text-red-300
+            transition-all
+            disabled:opacity-50
+          "
+          title="Delete board"
+        >
+          {isDeleting ? (
+            <div className="w-4 h-4 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />
+          ) : (
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+              />
+            </svg>
+          )}
+        </button>
+      )}
+    </div>
+
+    {/* Spacer */}
+    <div className="flex-1" />
+
+    {/* Members */}
+    <div className="mb-4">
+      <div
+        className="
+          inline-flex items-center gap-2
+          px-3 py-2
+          rounded-xl
+          bg-gray-800/70
+          border border-gray-700/70
+          text-gray-300
+        "
+      >
+        <svg
+          className="w-4 h-4 text-purple-400"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={1.8}
+            d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2
+               M9 11a4 4 0 100-8 4 4 0 000 8z
+               M22 21v-2a4 4 0 00-3-3.87
+               M16 3.13a4 4 0 010 7.75"
+          />
+        </svg>
+
+        <span className="text-sm font-medium">
+          Members
+        </span>
+
+        <span className="text-sm font-semibold text-purple-300">
+          {Array.isArray(board.members) ? board.members.length : 0}
+        </span>
+      </div>
+    </div>
+
+    {/* Open Board */}
+    <a
+      href={`/board/${board._id}`}
+      className="
+        w-full
+        flex items-center justify-center gap-2
+        px-5 py-3
+        rounded-xl
+        bg-gradient-to-r from-purple-600 to-indigo-600
+        hover:from-purple-500 hover:to-indigo-500
+        text-white
+        font-semibold
+        shadow-lg shadow-purple-500/20
+        hover:shadow-purple-500/30
+        transition-all duration-300
+        group-hover:translate-y-[-1px]
+      "
+    >
+      <span>Open Board</span>
+
+      <svg
+        className="w-4 h-4 transition-transform group-hover:translate-x-1"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M13 7l5 5m0 0l-5 5m5-5H6"
+        />
+      </svg>
+    </a>
+
+  </div>
+</div>
                 );
               })}
             </div>
           )}
-        </div>
+        </section>
       </div>
     </div>
   );

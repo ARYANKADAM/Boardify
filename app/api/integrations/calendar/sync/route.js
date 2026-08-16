@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 import User from '@/models/User';
 import Task from '@/models/Task';
+import List from '@/models/List';
 import Board from '@/models/Board';
 
 export async function POST(request) {
@@ -12,7 +13,8 @@ export async function POST(request) {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.userId);
+    // FIX: token is signed with `id`, not `userId`
+    const user = await User.findById(decoded.id);
 
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
@@ -26,7 +28,17 @@ export async function POST(request) {
 
     // Check if user has access to the board
     const board = await Board.findById(boardId);
-    if (!board || !board.members.includes(user._id)) {
+    if (!board) {
+      return NextResponse.json({ error: 'Board not found' }, { status: 404 });
+    }
+    // FIX: members is an array of { user, role } objects, not plain ObjectIds,
+    // and the owner also needs to be allowed
+    const isOwner = String(board.owner) === String(user._id);
+    const isMember = Array.isArray(board.members) && board.members.some(m => {
+      const uid = m && (m.user ? String(m.user) : String(m));
+      return uid === String(user._id);
+    });
+    if (!isOwner && !isMember) {
       return NextResponse.json({ error: 'Board not found or access denied' }, { status: 403 });
     }
 
@@ -36,9 +48,13 @@ export async function POST(request) {
       return NextResponse.json({ error: `${provider} integration not connected` }, { status: 400 });
     }
 
-    // Get tasks for the board
+    // FIX: Task has no `board` field — tasks belong to a List, and Lists belong to a Board.
+    // Get all lists for this board first, then find tasks in those lists.
+    const lists = await List.find({ boardId });
+    const listIds = lists.map(l => l._id);
+
     const tasks = await Task.find({
-      board: boardId,
+      listId: { $in: listIds },
       dueDate: { $ne: null }
     }).populate('assignedTo', 'name email');
 
@@ -76,21 +92,29 @@ async function syncToGoogleCalendar(user, tasks, googleIntegration) {
 
     for (const task of tasks) {
       try {
+        // FIX: assignedTo is an array on the Task schema, not a single user
+        const assignees = Array.isArray(task.assignedTo) ? task.assignedTo : (task.assignedTo ? [task.assignedTo] : []);
+
+        // FIX: task.dueDate typically only stores a date (midnight UTC), which
+        // creates calendar events at 12 AM — easy to miss and not useful.
+        // Default synced events to 9 AM on the due date instead.
+        const dueDate = new Date(task.dueDate);
+        dueDate.setUTCHours(9, 0, 0, 0);
+
         const eventData = {
           summary: task.title,
           description: task.description || '',
           start: {
-            dateTime: new Date(task.dueDate).toISOString(),
+            dateTime: dueDate.toISOString(),
             timeZone: 'UTC'
           },
           end: {
-            dateTime: new Date(new Date(task.dueDate).getTime() + 60 * 60 * 1000).toISOString(), // 1 hour duration
+            dateTime: new Date(dueDate.getTime() + 60 * 60 * 1000).toISOString(), // 1 hour duration
             timeZone: 'UTC'
           },
-          attendees: task.assignedTo ? [{
-            email: task.assignedTo.email,
-            displayName: task.assignedTo.name
-          }] : []
+          attendees: assignees
+            .filter(a => a && a.email)
+            .map(a => ({ email: a.email, displayName: a.name }))
         };
 
         // Check if event already exists
@@ -155,6 +179,13 @@ async function syncToOutlookCalendar(user, tasks, outlookIntegration) {
 
     for (const task of tasks) {
       try {
+        // FIX: assignedTo is an array on the Task schema, not a single user
+        const assignees = Array.isArray(task.assignedTo) ? task.assignedTo : (task.assignedTo ? [task.assignedTo] : []);
+
+        // FIX: same midnight-timestamp issue as Google — default to 9 AM
+        const dueDate = new Date(task.dueDate);
+        dueDate.setUTCHours(9, 0, 0, 0);
+
         const eventData = {
           subject: task.title,
           body: {
@@ -162,20 +193,19 @@ async function syncToOutlookCalendar(user, tasks, outlookIntegration) {
             content: task.description || ''
           },
           start: {
-            dateTime: new Date(task.dueDate).toISOString(),
+            dateTime: dueDate.toISOString(),
             timeZone: 'UTC'
           },
           end: {
-            dateTime: new Date(new Date(task.dueDate).getTime() + 60 * 60 * 1000).toISOString(),
+            dateTime: new Date(dueDate.getTime() + 60 * 60 * 1000).toISOString(),
             timeZone: 'UTC'
           },
-          attendees: task.assignedTo ? [{
-            emailAddress: {
-              address: task.assignedTo.email,
-              name: task.assignedTo.name
-            },
-            type: 'required'
-          }] : []
+          attendees: assignees
+            .filter(a => a && a.email)
+            .map(a => ({
+              emailAddress: { address: a.email, name: a.name },
+              type: 'required'
+            }))
         };
 
         // Check if event already exists

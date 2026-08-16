@@ -1,163 +1,883 @@
- 'use client';
- import ReviewsSection from '../components/ReviewsSection';
+import React from "react";
+import Testimonials from "@/components/Testimonials";
 
- export default function LandingPage() {
-   return (
-     <main className="min-h-screen bg-linear-to-br from-gray-900 via-purple-900/20 to-gray-900 text-gray-100 relative overflow-hidden">
-       {/* Animated background elements */}
-       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-         <div className="absolute top-20 left-10 w-72 h-72 bg-purple-500/10 rounded-full blur-3xl animate-pulse"></div>
-         <div className="absolute bottom-20 right-10 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
-       </div>
+/**
+ * =====================================================================
+ * DECORATIVE COMPONENTS
+ * =====================================================================
+ */
 
-       <div className="max-w-7xl mx-auto px-6 py-16 relative z-10">
-         {/* Header */}
-         <nav className="flex items-center justify-between mb-20">
-           <div className="flex items-center gap-2">
-             <div className="w-8 h-8 bg-linear-to-br from-purple-500 to-indigo-600 rounded-lg flex items-center justify-center">
-               <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-               </svg>
-             </div>
-             <span className="text-xl font-bold bg-linear-to-r from-purple-400 to-indigo-400 bg-clip-text text-transparent">Boardify</span>
-           </div>
-           <div className="flex gap-3">
-             <a href="/login" className="px-4 py-2 text-gray-300 hover:text-white transition-colors">Sign In</a>
-             <a href="/register" className="px-5 py-2 rounded-lg bg-linear-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-medium shadow-lg shadow-purple-500/20 transition-all">Get Started</a>
-           </div>
-         </nav>
+const PurpleAtmosphere = () => (
+  <div
+    className="
+      absolute
+      top-0
+      left-1/2
+      -translate-x-1/2
+      -translate-y-1/2
+      w-[700px]
+      sm:w-[900px]
+      lg:w-[1000px]
+      h-[450px]
+      sm:h-[550px]
+      lg:h-[600px]
+      bg-purple-900/30
+      blur-[100px]
+      lg:blur-[120px]
+      rounded-full
+      pointer-events-none
+      z-0
+    "
+  />
+);
 
-         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center mb-20">
-           {/* Left: Hero text */}
-           <section className="space-y-8">
-             <div className="inline-flex items-center gap-2 bg-purple-500/10 border border-purple-500/20 px-4 py-2 rounded-full backdrop-blur-sm">
-               <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
-               <span className="text-sm font-medium text-purple-300">Project Management Reimagined</span>
-             </div>
+const LeftGlow = () => (
+  <div
+    className="
+      absolute
+      top-[400px]
+      -left-[250px]
+      sm:-left-[300px]
+      w-[450px]
+      sm:w-[600px]
+      h-[450px]
+      sm:h-[600px]
+      bg-purple-900/20
+      blur-[100px]
+      lg:blur-[120px]
+      rounded-full
+      pointer-events-none
+      z-0
+    "
+  />
+);
 
-             <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold leading-tight">
-               <span className="bg-linear-to-r from-white via-purple-200 to-indigo-200 bg-clip-text text-transparent">Organize work</span>
-               <br />
-               <span className="text-gray-100">beautifully</span>
-             </h1>
+const RightGlow = () => (
+  <div
+    className="
+      absolute
+      top-[600px]
+      -right-[250px]
+      sm:-right-[300px]
+      w-[450px]
+      sm:w-[600px]
+      h-[450px]
+      sm:h-[600px]
+      bg-indigo-950/30
+      blur-[100px]
+      lg:blur-[120px]
+      rounded-full
+      pointer-events-none
+      z-0
+    "
+  />
+);
 
-             <p className="text-xl text-gray-400 max-w-xl leading-relaxed">
-               Flexible boards, real-time collaboration, and powerful permissions. Everything your team needs to stay in sync, wrapped in an elegant dark interface.
-             </p>
+/**
+ * =====================================================================
+ * FEATURE CARD
+ * =====================================================================
+ */
 
-             <div className="flex flex-col sm:flex-row gap-4 pt-4">
-               <a href="/register" className="group inline-flex items-center justify-center px-8 py-4 rounded-xl bg-linear-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold shadow-2xl shadow-purple-500/30 transition-all transform hover:scale-105">
-                 Start Free Trial
-                 <svg className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                 </svg>
-               </a>
-               <a href="#features" className="inline-flex items-center justify-center px-8 py-4 rounded-xl bg-gray-800/50 hover:bg-gray-800 text-gray-200 border border-gray-700/50 backdrop-blur-sm font-medium transition-all">See Features</a>
-             </div>
-           </section>
+const FeatureCard = ({
+  icon,
+  title,
+  description,
+  imagePlaceholderText,
+}) => (
+  <div
+    className="
+      bg-[#111727]/60
+      border
+      border-white/[0.06]
+      rounded-2xl
+      p-5
+      sm:p-6
+      flex
+      flex-col
+      hover:border-purple-500/20
+      transition-all
+      duration-300
+      group
+    "
+  >
+    <div
+      className="
+        w-10
+        h-10
+        rounded-xl
+        bg-purple-500/10
+        border
+        border-purple-500/20
+        flex
+        items-center
+        justify-center
+        text-purple-400
+        text-xl
+        mb-5
+      "
+    >
+      {icon}
+    </div>
 
-           {/* Right: Feature showcase */}
-           <aside className="relative">
-             <div className="absolute inset-0 bg-linear-to-br from-purple-600/20 to-indigo-600/20 rounded-3xl blur-2xl"></div>
-             <div className="relative bg-linear-to-br from-gray-800/80 to-gray-900/80 border border-gray-700/50 rounded-2xl p-8 shadow-2xl backdrop-blur-xl">
-               <div className="flex items-center gap-3 mb-6">
-                 <div className="w-10 h-10 bg-linear-to-br from-purple-500 to-indigo-600 rounded-lg flex items-center justify-center">
-                   <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                   </svg>
-                 </div>
-                 <h3 className="text-2xl font-bold text-white">Powerful Features</h3>
-               </div>
+    <h3 className="text-lg font-semibold text-white mb-2">
+      {title}
+    </h3>
 
-               <div className="space-y-4">
-                 {[
-                   { icon: '⚡', title: 'Real-time Sync', desc: 'WebSocket-powered live updates across all devices' },
-                   { icon: '🔐', title: 'Smart Permissions', desc: 'Fine-grained access control with 4 role types' },
-                   { icon: '🎯', title: 'Drag & Drop', desc: 'Intuitive task management with smooth interactions' },
-                   { icon: '📊', title: 'Activity Tracking', desc: 'Complete audit trail of all team actions' }
-                 ].map((feature, i) => (
-                   <div key={i} className="group flex items-start gap-4 p-4 rounded-xl bg-gray-800/50 hover:bg-gray-800 border border-gray-700/30 hover:border-purple-500/30 transition-all cursor-pointer">
-                     <span className="text-2xl shrink-0">{feature.icon}</span>
-                     <div>
-                       <h4 className="font-semibold text-white mb-1 group-hover:text-purple-300 transition-colors">{feature.title}</h4>
-                       <p className="text-sm text-gray-400">{feature.desc}</p>
-                     </div>
-                   </div>
-                 ))}
-               </div>
+    <p className="text-sm text-gray-400 leading-relaxed mb-6 flex-grow">
+      {description}
+    </p>
 
-               <div className="mt-8 p-4 rounded-xl bg-linear-to-r from-purple-900/30 to-indigo-900/30 border border-purple-500/20">
-                 <p className="text-sm text-gray-300"><span className="font-semibold text-purple-300">Pro tip:</span> Register as different roles to experience how permissions shape your workflow.</p>
-               </div>
-             </div>
-           </aside>
-         </div>
+    {/* Feature Image */}
+    <div
+      className="
+        relative
+        h-28
+        sm:h-32
+        rounded-xl
+        overflow-hidden
+        bg-[#0c1220]
+        border
+        border-white/[0.05]
+      "
+    >
+      {/*
+        Add your feature image here:
 
-         {/* Stats section */}
-         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 py-16 border-y border-gray-800/50">
-           {[{ value: '100+', label: 'Teams onboard' }, { value: '99.9%', label: 'Uptime' }, { value: '<100ms', label: 'Real-time sync' }, { value: '4', label: 'Permission roles' }].map((stat, i) => (
-             <div key={i} className="text-center">
-               <div className="text-3xl md:text-4xl font-bold bg-linear-to-r from-purple-400 to-indigo-400 bg-clip-text text-transparent mb-2">{stat.value}</div>
-               <div className="text-sm text-gray-500">{stat.label}</div>
-             </div>
-           ))}
-         </div>
+        <img
+          src="YOUR_FEATURE_IMAGE_PATH"
+          alt={title}
+          className="
+            absolute
+            inset-0
+            w-full
+            h-full
+            object-cover
+            object-top
+            opacity-80
+            group-hover:opacity-100
+            transition-opacity
+          "
+        />
+      */}
 
-         {/* Detailed Features Section */}
-         <section id="features" className="py-20">
-           <div className="text-center mb-16">
-             <h2 className="text-4xl font-bold text-white mb-4">Everything You Need to Succeed</h2>
-             <p className="text-xl text-gray-400 max-w-3xl mx-auto">Powerful features designed to streamline your workflow and boost team productivity</p>
-           </div>
+      <div
+        className="
+          absolute
+          inset-0
+          flex
+          items-center
+          justify-center
+          text-xs
+          text-gray-700
+          italic
+          px-4
+          text-center
+        "
+      >
+        {imagePlaceholderText || "[ Feature Screenshot / Graphic Here ]"}
+      </div>
 
-           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
-             {[
-               { icon: '⚡', title: 'Real-time Collaboration', desc: 'See changes instantly as your team works together. No more wondering if someone updated the board.', features: ['Live task updates', 'Instant notifications', 'Concurrent editing'] },
-               { icon: '🔐', title: 'Advanced Permissions', desc: 'Control who can see and edit what with our flexible role-based access system.', features: ['Owner, Admin, Member, Viewer roles', 'Board-level permissions', 'Granular access control'] },
-               { icon: '🎯', title: 'Intuitive Drag & Drop', desc: 'Move tasks between lists with smooth animations and instant visual feedback.', features: ['Smooth animations', 'Multi-task selection', 'Keyboard shortcuts'] },
-               { icon: '📊', title: 'Activity Tracking', desc: 'Keep track of everything that happens on your boards with detailed activity logs.', features: ['Complete audit trail', 'User activity history', 'Export capabilities'] },
-               { icon: '📱', title: 'Cross-Platform', desc: 'Access your boards from any device with our responsive web interface.', features: ['Mobile optimized', 'Tablet support', 'Desktop experience'] },
-               { icon: '🔗', title: 'Integrations', desc: 'Connect with your favorite tools and services to streamline your workflow.', features: ['Calendar sync', 'Google Workspace', 'Microsoft Outlook'] }
-             ].map((feature, i) => (
-               <div key={i} className="group bg-linear-to-br from-gray-800/50 to-gray-900/50 border border-gray-700/30 rounded-xl p-6 hover:border-purple-500/30 transition-all">
-                 <div className="text-4xl mb-4">{feature.icon}</div>
-                 <h3 className="text-xl font-semibold text-white mb-3 group-hover:text-purple-300 transition-colors">{feature.title}</h3>
-                 <p className="text-gray-400 mb-4">{feature.desc}</p>
-                 <ul className="space-y-2">
-                   {feature.features.map((item, j) => (
-                     <li key={j} className="flex items-center gap-2 text-sm text-gray-500">
-                       <svg className="w-4 h-4 text-green-400 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                       </svg>
-                       {item}
-                     </li>
-                   ))}
-                 </ul>
-               </div>
-             ))}
-           </div>
-         </section>
-       </div>
+      <div
+        className="
+          absolute
+          inset-0
+          bg-gradient-to-t
+          from-[#0c1220]
+          via-transparent
+          to-transparent
+        "
+      />
+    </div>
+  </div>
+);
 
-       {/* Reviews Section (dynamic) */}
-       <ReviewsSection />
+/**
+ * =====================================================================
+ * MAIN LANDING PAGE
+ * =====================================================================
+ */
 
-       {/* Footer */}
-       <footer className="border-t border-gray-800/50 py-8 mt-20 relative z-10">
-         <div className="max-w-7xl mx-auto px-6">
-           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-             <div className="flex items-center gap-2">
-               <div className="w-6 h-6 bg-linear-to-br from-purple-500 to-indigo-600 rounded-lg"></div>
-               <span className="text-sm text-gray-400">© {new Date().getFullYear()} Boardify — Built for focused collaboration</span>
-             </div>
-             <div className="flex gap-6 text-sm text-gray-500">
-               <a href="#" className="hover:text-purple-400 transition-colors">Privacy</a>
-               <a href="#" className="hover:text-purple-400 transition-colors">Terms</a>
-               <a href="#" className="hover:text-purple-400 transition-colors">Contact</a>
-             </div>
-           </div>
-         </div>
-       </footer>
-     </main>
-   );
- }
+const BoardifyLandingPage = () => {
+  return (
+    <div
+      className="
+        min-h-screen
+        w-full
+        bg-[#0b1020]
+        text-gray-100
+        font-sans
+        relative
+        overflow-x-hidden
+      "
+    >
+      {/* Background */}
+      <PurpleAtmosphere />
+      <LeftGlow />
+      <RightGlow />
+
+      <div className="relative z-10 w-full">
+        {/* ============================================================
+            NAVBAR
+        ============================================================ */}
+
+        <nav
+          className="
+            w-full
+            border-b
+            border-white/[0.06]
+            bg-[#0b1020]/80
+            backdrop-blur-sm
+            sticky
+            top-0
+            z-50
+          "
+        >
+          <div
+            className="
+              max-w-7xl
+              mx-auto
+              px-4
+              sm:px-6
+              lg:px-8
+              h-16
+              flex
+              items-center
+              justify-between
+            "
+          >
+            {/* Logo */}
+            <a href="#" className="flex items-center gap-2 shrink-0">
+              <div
+                className="
+                  w-8
+                  h-8
+                  rounded-lg
+                  bg-gradient-to-br
+                  from-purple-500
+                  to-indigo-600
+                  flex
+                  items-center
+                  justify-center
+                  shadow-lg
+                  shadow-purple-950/50
+                "
+              >
+                <svg
+                  className="w-4 h-4 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a3 3 0 006 0M9 5a3 3 0 013-3 3 3 0 013 3"
+                  />
+                </svg>
+              </div>
+
+              <span className="text-lg font-bold text-white tracking-tight">
+                Boardify
+              </span>
+            </a>
+
+            {/* Navigation */}
+            <div className="flex items-center gap-3 sm:gap-5 md:gap-7 text-sm">
+              <a
+                href="/login"
+                className="
+                  text-gray-300
+                  hover:text-white
+                  transition-colors
+                "
+              >
+                Log In
+              </a>
+
+              <a
+                href="/register"
+                className="
+                  px-4
+                  sm:px-5
+                  py-2
+                  rounded-full
+                  bg-gradient-to-r
+                  from-purple-500
+                  to-indigo-600
+                  text-white
+                  font-semibold
+                  text-xs
+                  shadow-lg
+                  shadow-purple-950/40
+                  hover:from-purple-400
+                  hover:to-indigo-500
+                  transition-all
+                  hover:-translate-y-0.5
+                  whitespace-nowrap
+                "
+              >
+                Get Started Free
+              </a>
+            </div>
+          </div>
+        </nav>
+
+        {/* ============================================================
+            HERO SECTION
+        ============================================================ */}
+
+        <header
+          className="
+            relative
+            pt-12
+            sm:pt-16
+            md:pt-20
+            pb-16
+            sm:pb-20
+            overflow-hidden
+          "
+        >
+          {/* Hero Glow */}
+          <div className="absolute inset-0 pointer-events-none">
+            <div
+              className="
+                absolute
+                top-[-120px]
+                sm:top-[-180px]
+                left-1/2
+                -translate-x-1/2
+                w-[500px]
+                sm:w-[700px]
+                md:w-[850px]
+                h-[350px]
+                sm:h-[450px]
+                md:h-[500px]
+                bg-purple-700/25
+                blur-[100px]
+                md:blur-[140px]
+                rounded-full
+              "
+            />
+          </div>
+
+          <div className="relative w-full flex flex-col items-center">
+            {/* ========================================================
+                BOARD SCREENSHOT
+            ======================================================== */}
+
+            <div
+              className="
+                relative
+                w-full
+                max-w-4xl
+                mx-auto
+                px-4
+                sm:px-6
+                md:px-0
+                flex
+                justify-center
+              "
+            >
+              {/* Glow */}
+              <div
+                className="
+                  absolute
+                  -inset-5
+                  sm:-inset-8
+                  md:-inset-10
+                  bg-purple-600/20
+                  blur-[60px]
+                  sm:blur-[80px]
+                  md:blur-[90px]
+                  rounded-full
+                  pointer-events-none
+                "
+              />
+
+              {/* Screenshot Frame */}
+              <div
+                className="
+                  relative
+                  w-full
+                  max-w-[900px]
+                  h-[190px]
+                  xs:h-[210px]
+                  sm:h-[260px]
+                  md:h-[320px]
+                  lg:h-[350px]
+                  rounded-xl
+                  sm:rounded-2xl
+                  overflow-hidden
+                  border
+                  border-purple-300/20
+                  bg-[#111727]
+                  shadow-2xl
+                  shadow-purple-950/30
+                "
+              >
+                <img
+                  src="/images/board-preview.png"
+                  alt="Boardify workspace"
+                  className="
+                    absolute
+                    inset-0
+                    w-full
+                    h-full
+                    object-cover
+                    object-top
+                    opacity-75
+                  "
+                />
+
+                {/* Dark overlay */}
+                <div
+                  className="
+                    absolute
+                    inset-0
+                    bg-gradient-to-b
+                    from-transparent
+                    via-[#0c1220]/10
+                    to-[#0b1020]
+                  "
+                />
+
+                {/* Bottom fade */}
+                <div
+                  className="
+                    absolute
+                    left-0
+                    right-0
+                    bottom-0
+                    h-[80px]
+                    sm:h-[110px]
+                    md:h-[150px]
+                    bg-gradient-to-t
+                    from-[#0b1020]
+                    via-[#0b1020]/75
+                    to-transparent
+                  "
+                />
+              </div>
+            </div>
+
+            {/* ========================================================
+                HERO CONTENT
+            ======================================================== */}
+
+            <div
+              className="
+                relative
+                z-20
+                w-full
+                flex
+                flex-col
+                items-center
+                text-center
+                -mt-[35px]
+                sm:-mt-[50px]
+                md:-mt-[65px]
+                px-4
+              "
+            >
+              <h1
+                className="
+                  w-full
+                  max-w-[1100px]
+                  mx-auto
+                  text-center
+                  text-white
+                  font-extrabold
+                  tracking-[-0.045em]
+                  leading-[0.95]
+                  drop-shadow-[0_5px_20px_rgba(0,0,0,0.9)]
+                "
+              >
+                <span
+                  className="
+                    block
+                    text-[38px]
+                    leading-[1]
+                    sm:text-[48px]
+                    md:text-[64px]
+                    lg:text-[72px]
+                    xl:text-[84px]
+                  "
+                >
+                  Transform Chaos into Clarity
+                </span>
+
+                <span
+                  className="
+                    block
+                    mt-2
+                    text-[38px]
+                    leading-[1]
+                    sm:text-[48px]
+                    md:text-[64px]
+                    lg:text-[72px]
+                    xl:text-[84px]
+                  "
+                >
+                  Mastering Every Task
+                </span>
+              </h1>
+
+              {/* CTA Buttons */}
+              <div
+                className="
+                  flex
+                  flex-col
+                  sm:flex-row
+                  items-center
+                  justify-center
+                  gap-3
+                  sm:gap-4
+                  mt-7
+                  sm:mt-8
+                  w-full
+                  px-4
+                "
+              >
+                <a
+                  href="/register"
+                  className="
+                    w-full
+                    sm:w-auto
+                    px-7
+                    sm:px-8
+                    py-3
+                    sm:py-3.5
+                    rounded-full
+                    bg-gradient-to-r
+                    from-purple-500
+                    to-indigo-600
+                    text-white
+                    font-semibold
+                    text-sm
+                    sm:text-base
+                    shadow-xl
+                    shadow-purple-950/60
+                    hover:from-purple-400
+                    hover:to-indigo-500
+                    transition-all
+                    hover:-translate-y-1
+                    text-center
+                  "
+                >
+                  Get Your Board Free →
+                </a>
+
+                <a
+                  href="#"
+                  className="
+                    w-full
+                    sm:w-auto
+                    px-7
+                    sm:px-8
+                    py-3
+                    sm:py-3.5
+                    rounded-full
+                    bg-white/[0.04]
+                    border
+                    border-white/[0.12]
+                    text-white
+                    font-medium
+                    text-sm
+                    sm:text-base
+                    hover:bg-white/[0.08]
+                    transition-all
+                    text-center
+                  "
+                >
+                  Watch Demo
+                </a>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* ============================================================
+            FEATURE / CALENDAR SECTION
+        ============================================================ */}
+
+        <section className="py-12 sm:py-16 md:py-20 relative">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div
+              className="
+                grid
+                grid-cols-1
+                md:grid-cols-12
+                gap-8
+                md:gap-10
+                items-center
+              "
+            >
+              {/* Text */}
+              <div
+                className="
+                  md:col-span-4
+                  max-w-lg
+                  md:max-w-sm
+                  mx-auto
+                  md:mx-0
+                  text-center
+                  md:text-left
+                "
+              >
+                <div
+                  className="
+                    w-10
+                    h-10
+                    rounded-xl
+                    bg-purple-500/10
+                    border
+                    border-purple-500/20
+                    flex
+                    items-center
+                    justify-center
+                    text-purple-400
+                    text-xl
+                    mb-5
+                    sm:mb-6
+                    mx-auto
+                    md:mx-0
+                  "
+                >
+                  ▦
+                </div>
+
+                <h2
+                  className="
+                    text-2xl
+                    sm:text-3xl
+                    font-bold
+                    tracking-tight
+                    text-white
+                    mb-4
+                    leading-tight
+                  "
+                >
+                  Stay in Sync, Everywhere.
+                </h2>
+
+                <p
+                  className="
+                    text-sm
+                    sm:text-base
+                    text-gray-400
+                    leading-relaxed
+                  "
+                >
+                  Connect your tasks with your calendar and keep your
+                  schedule automatically in sync. Plan deadlines, meetings,
+                  and tasks together without switching between apps.
+                </p>
+              </div>
+
+              {/* Screenshot */}
+              <div className="md:col-span-8 relative">
+                <div
+                  className="
+                    absolute
+                    inset-5
+                    sm:inset-10
+                    bg-purple-600/10
+                    blur-[60px]
+                    sm:blur-[80px]
+                    rounded-full
+                    z-0
+                    pointer-events-none
+                  "
+                />
+
+                <div
+                  className="
+                    relative
+                    rounded-xl
+                    sm:rounded-2xl
+                    border
+                    border-purple-300/10
+                    bg-[#111727]/70
+                    p-1
+                    shadow-xl
+                    shadow-purple-950/10
+                    overflow-hidden
+                    z-10
+                  "
+                >
+                  <div
+                    className="
+                      rounded-lg
+                      sm:rounded-xl
+                      overflow-hidden
+                      border
+                      border-white/[0.05]
+                      aspect-[16/10]
+                      bg-[#0c1220]
+                      relative
+                    "
+                  >
+                    <img
+                      src="/images/board-details.png"
+                      alt="Boardify calendar integration"
+                      className="
+                        w-full
+                        h-full
+                        object-cover
+                        object-top
+                        opacity-90
+                      "
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ============================================================
+            TESTIMONIALS
+        ============================================================ */}
+
+        <Testimonials />
+
+        {/* ============================================================
+            BOTTOM CTA
+        ============================================================ */}
+
+        <section className="py-16 sm:py-20 md:py-24 relative">
+          <div
+            className="
+              absolute
+              inset-0
+              bg-gradient-to-b
+              from-purple-950/10
+              to-transparent
+              blur-[100px]
+              md:blur-[120px]
+              pointer-events-none
+              z-0
+            "
+          />
+
+          <div
+            className="
+              max-w-4xl
+              mx-auto
+              px-4
+              sm:px-6
+              lg:px-8
+              text-center
+              relative
+              z-10
+            "
+          >
+            <h2
+              className="
+                text-3xl
+                sm:text-4xl
+                md:text-5xl
+                font-extrabold
+                tracking-[-0.03em]
+                text-white
+                leading-tight
+                mb-5
+                max-w-3xl
+                mx-auto
+              "
+            >
+              Ready to Supercharge Your Workflow?
+            </h2>
+
+            <p
+              className="
+                text-sm
+                sm:text-base
+                text-gray-400
+                leading-relaxed
+                mb-8
+                sm:mb-10
+                max-w-xl
+                mx-auto
+              "
+            >
+              Join thousands of teams who trust Boardify. No credit card
+              required to start.
+            </p>
+
+            <a
+              href="/register"
+              className="
+                inline-flex
+                px-8
+                sm:px-10
+                py-3.5
+                sm:py-4
+                rounded-full
+                bg-gradient-to-r
+                from-purple-500
+                to-indigo-600
+                text-white
+                font-semibold
+                text-sm
+                sm:text-base
+                shadow-xl
+                shadow-purple-950/70
+                hover:from-purple-400
+                hover:to-indigo-500
+                transition-all
+                hover:-translate-y-1
+              "
+            >
+              Get Started Free
+            </a>
+          </div>
+        </section>
+
+        {/* ============================================================
+            FOOTER
+        ============================================================ */}
+
+        <footer
+          className="
+            w-full
+            border-t
+            border-white/[0.06]
+            bg-[#0b1020]
+          "
+        >
+          <div
+            className="
+              max-w-7xl
+              mx-auto
+              px-4
+              sm:px-6
+              lg:px-8
+              py-6
+              flex
+              flex-col
+              sm:flex-row
+              items-center
+              justify-center
+              sm:justify-between
+              gap-3
+              text-xs
+              text-gray-600
+              text-center
+              sm:text-left
+            "
+          >
+            <p>
+              &copy; {new Date().getFullYear()} Boardify Inc. All rights
+              reserved.
+            </p>
+          </div>
+        </footer>
+      </div>
+    </div>
+  );
+};
+
+export default BoardifyLandingPage;

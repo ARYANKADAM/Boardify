@@ -6,6 +6,7 @@ import jwt from 'jsonwebtoken';
 import logger from '../../../../lib/logger';
 import Board from '../../../../models/Board';
 import { canPerform } from '../../../../lib/permissions';
+import { broadcast } from '../../../../lib/broadcast';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -71,12 +72,7 @@ export async function DELETE(req, context) {
     const activity = await Activity.create({ boardId: list.boardId, userId: user.id, action: 'list.deleted', details: `${user.email} deleted list "${list.title}"` });
     // broadcast activity with populated user info
     const populatedActivity = await Activity.findById(activity._id).populate('userId', 'name email');
-    const SOCKET_SERVER = process.env.SOCKET_SERVER_URL || 'http://localhost:4001';
-    await fetch(`${SOCKET_SERVER}/broadcast`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event: 'activity:created', boardId: list.boardId, data: populatedActivity }),
-    });
+    await broadcast({ event: 'activity:created', boardId: list.boardId, data: populatedActivity });
   } catch (err) {
     logger.error(err, 'activity create failed');
   }

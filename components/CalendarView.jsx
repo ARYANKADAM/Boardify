@@ -56,14 +56,7 @@ export default function CalendarView({ boardId }) {
           import('@fullcalendar/daygrid'),
           import('@fullcalendar/interaction'),
         ]);
-        try {
-          await Promise.all([
-            import('@fullcalendar/common/main.css'),
-            import('@fullcalendar/daygrid/index.css'),
-          ]);
-        } catch (cssErr) {
-          // ignore
-        }
+       
         if (!mounted) return;
         setFullCalendarComp(() => FullCalendar);
         setPlugins([dayGridPlugin, interactionPlugin]);

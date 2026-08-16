@@ -84,7 +84,9 @@ export default function CalendarIntegrations({ boardId }) {
     const redirectUri = `${window.location.origin}/api/integrations/google/callback`;
     const scope = 'https://www.googleapis.com/auth/calendar.events';
 
-    const authUrl = `https://accounts.google.com/oauth/authorize?` +
+    // FIX: the old URL (accounts.google.com/oauth/authorize) is not a valid
+    // Google OAuth endpoint. The correct authorization endpoint is below.
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
       `client_id=${clientId}&` +
       `redirect_uri=${encodeURIComponent(redirectUri)}&` +
       `scope=${encodeURIComponent(scope)}&` +
@@ -123,19 +125,25 @@ export default function CalendarIntegrations({ boardId }) {
         body: JSON.stringify({ provider, boardId })
       });
 
+      const data = await response.json();
+
       if (response.ok) {
-        const data = await response.json();
         setLastSync(new Date());
-        if (window.addNotification) {
-          window.addNotification(`Successfully synced to ${provider}!`, 'success');
+        if (data.errors && data.errors.length > 0) {
+          console.error('Sync completed with errors:', data.errors);
+          if (window.addNotification) {
+            window.addNotification(`Synced ${data.synced} task(s), but ${data.errors.length} failed. Check console.`, 'error');
+          }
+        } else if (window.addNotification) {
+          window.addNotification(`Successfully synced ${data.synced} task(s) to ${provider}!`, 'success');
         }
       } else {
-        throw new Error('Sync failed');
+        throw new Error(data.error || 'Sync failed');
       }
     } catch (error) {
       console.error('Sync failed:', error);
       if (window.addNotification) {
-        window.addNotification(`Failed to sync to ${provider}`, 'error');
+        window.addNotification(`Failed to sync to ${provider}: ${error.message}`, 'error');
       }
     } finally {
       setSyncing(false);
@@ -212,25 +220,31 @@ export default function CalendarIntegrations({ boardId }) {
               </button>
             ) : (
               <div className="space-y-2">
-                <button
-                  onClick={() => syncToExternal('google')}
-                  disabled={syncing}
-                  className="w-full px-4 py-2 bg-green-600/20 hover:bg-green-600/30 border border-green-500/30 text-green-400 rounded-lg font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                >
-                  {syncing ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-green-400/30 border-t-green-400 rounded-full animate-spin"></div>
-                      Syncing...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                      Sync to Google Calendar
-                    </>
-                  )}
-                </button>
+                {boardId ? (
+                  <button
+                    onClick={() => syncToExternal('google')}
+                    disabled={syncing}
+                    className="w-full px-4 py-2 bg-green-600/20 hover:bg-green-600/30 border border-green-500/30 text-green-400 rounded-lg font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {syncing ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-green-400/30 border-t-green-400 rounded-full animate-spin"></div>
+                        Syncing...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Sync to Google Calendar
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <p className="text-xs text-center text-gray-500 py-1">
+                    Open a board to sync its tasks
+                  </p>
+                )}
                 <button
                   onClick={() => disconnect('google')}
                   className="w-full px-4 py-2 bg-gray-600/20 hover:bg-gray-600/30 border border-gray-500/30 text-gray-400 rounded-lg font-medium transition-all"
@@ -273,25 +287,31 @@ export default function CalendarIntegrations({ boardId }) {
               </button>
             ) : (
               <div className="space-y-2">
-                <button
-                  onClick={() => syncToExternal('outlook')}
-                  disabled={syncing}
-                  className="w-full px-4 py-2 bg-green-600/20 hover:bg-green-600/30 border border-green-500/30 text-green-400 rounded-lg font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                >
-                  {syncing ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-green-400/30 border-t-green-400 rounded-full animate-spin"></div>
-                      Syncing...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                      Sync to Outlook Calendar
-                    </>
-                  )}
-                </button>
+                {boardId ? (
+                  <button
+                    onClick={() => syncToExternal('outlook')}
+                    disabled={syncing}
+                    className="w-full px-4 py-2 bg-green-600/20 hover:bg-green-600/30 border border-green-500/30 text-green-400 rounded-lg font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {syncing ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-green-400/30 border-t-green-400 rounded-full animate-spin"></div>
+                        Syncing...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Sync to Outlook Calendar
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <p className="text-xs text-center text-gray-500 py-1">
+                    Open a board to sync its tasks
+                  </p>
+                )}
                 <button
                   onClick={() => disconnect('outlook')}
                   className="w-full px-4 py-2 bg-gray-600/20 hover:bg-gray-600/30 border border-gray-500/30 text-gray-400 rounded-lg font-medium transition-all"

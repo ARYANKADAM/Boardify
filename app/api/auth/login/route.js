@@ -9,10 +9,13 @@ const JWT_SECRET = process.env.JWT_SECRET;
 export async function POST(req) {
   await connectToDatabase();
   const { email, password } = await req.json();
+  const normalizedEmail = email?.toLowerCase().trim();
   if (!email || !password) return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
-  const user = await User.findOne({ email });
+  const user = await User.findOne({ email: normalizedEmail });
+  console.log('User found:', !!user, 'for email:', email);
   if (!user) return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
   const valid = await bcrypt.compare(password, user.password);
+  console.log('Password valid:', valid);
   if (!valid) return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
   const role = (user.role || 'member').toString().toLowerCase();
   const token = jwt.sign({ id: user._id, email: user.email, role }, JWT_SECRET, { expiresIn: '7d' });

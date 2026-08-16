@@ -5,6 +5,7 @@ import Task from '../../../../../../models/Task';
 import Notification from '../../../../../../models/Notification';
 import jwt from 'jsonwebtoken';
 import { canPerform } from '../../../../../../lib/permissions';
+import { broadcast } from '../../../../../../lib/broadcast';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -63,24 +64,19 @@ export async function DELETE(req, { params }) {
   // Delete the comment
   await Comment.findByIdAndDelete(commentId);
 
-  // Broadcast comment deletion to all users in the board room
+  // Broadcast comment deletion to all users viewing the board
   try {
-    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_SERVER_URL || 'http://localhost:4001';
-    await fetch(`${socketUrl}/broadcast`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        event: 'comment:deleted',
-        boardId: boardId,
-        data: {
-          commentId: commentId,
-          taskId: taskId
-        }
-      })
+    await broadcast({
+      event: 'comment:deleted',
+      boardId: boardId,
+      data: {
+        commentId: commentId,
+        taskId: taskId
+      }
     });
-  } catch (socketError) {
-    console.error('Failed to broadcast comment deletion:', socketError);
-    // Don't fail the request if socket broadcast fails
+  } catch (broadcastError) {
+    console.error('Failed to broadcast comment deletion:', broadcastError);
+    // Don't fail the request if broadcast fails
   }
 
   return NextResponse.json({ success: true }, { status: 200 });

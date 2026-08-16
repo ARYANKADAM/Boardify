@@ -8,6 +8,7 @@ import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import logger from '../../../../lib/logger';
 import { canPerform } from '../../../../lib/permissions';
+import { broadcast } from '../../../../lib/broadcast';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -82,7 +83,9 @@ export async function PUT(req, context) {
   if (title) task.title = title;
   if (description) task.description = description;
   if (assignedTo) task.assignedTo = assignedTo;
-  if (dueDate) task.dueDate = dueDate;
+  if (Object.prototype.hasOwnProperty.call(body, 'dueDate')) {
+  task.dueDate = dueDate;
+}
   if (priority) task.priority = priority;
   // We'll update positions below; don't set `task.position` yet if reindexing
 
@@ -156,39 +159,36 @@ export async function PUT(req, context) {
 
   } else {
     // no position provided — just save property updates
-    if (title || description || assignedTo || dueDate || priority) {
-      await task.save();
-    }
+   if (
+  Object.prototype.hasOwnProperty.call(body, 'title') ||
+  Object.prototype.hasOwnProperty.call(body, 'description') ||
+  Object.prototype.hasOwnProperty.call(body, 'assignedTo') ||
+  Object.prototype.hasOwnProperty.call(body, 'dueDate') ||
+  Object.prototype.hasOwnProperty.call(body, 'priority')
+) {
+  await task.save();
+}
   }
 
-  // Broadcast move/update to socket server
+  // Broadcast move/update via Firebase RTDB
   try {
-    const SOCKET_SERVER = process.env.SOCKET_SERVER_URL || 'http://localhost:4001';
     // determine boardId from destination list or task.listId
     const destList = await List.findById(task.listId);
-    const boardId = destList ? String(destList.boardId) : null;
-    await fetch(`${SOCKET_SERVER}/broadcast`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event: 'task:moved', boardId, data: { taskId: task._id, listId: task.listId, position: task.position } }),
-    });
+    const finalBoardId = destList ? String(destList.boardId) : null;
+    await broadcast({ event: 'task:moved', boardId: finalBoardId, data: { taskId: task._id, listId: task.listId, position: task.position } });
     // create activity (include destination list title for readability)
     try {
       const destListTitle = destList && destList.title ? destList.title : String(task.listId);
       const details = `${user.email} moved task "${task.title}" to list "${destListTitle}"`;
-      const activity = await Activity.create({ boardId, userId: user.id, action: 'task.moved', details });
+      const activity = await Activity.create({ boardId: finalBoardId, userId: user.id, action: 'task.moved', details });
       // broadcast activity with populated user info
       const populatedActivity = await Activity.findById(activity._id).populate('userId', 'name email');
-      await fetch(`${SOCKET_SERVER}/broadcast`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event: 'activity:created', boardId, data: populatedActivity }),
-      });
+      await broadcast({ event: 'activity:created', boardId: finalBoardId, data: populatedActivity });
     } catch (e) {
       logger.error(e, 'activity create failed');
     }
   } catch (err) {
-    logger.error(err, 'socket broadcast failed');
+    logger.error(err, 'broadcast failed');
   }
 
   return NextResponse.json({ task }, { status: 200 });
@@ -249,27 +249,19 @@ export async function DELETE(req, context) {
 
   // Broadcast deletion and create activity
   try {
-    const SOCKET_SERVER = process.env.SOCKET_SERVER_URL || 'http://localhost:4001';
-    const boardId = String(task.listId ? (await List.findById(task.listId)).boardId : null);
-    await fetch(`${SOCKET_SERVER}/broadcast`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event: 'task:deleted', boardId, data: { taskId: task._id } }),
-    });
+    const listAfterDelete = task.listId ? await List.findById(task.listId) : null;
+    const boardId = listAfterDelete ? String(listAfterDelete.boardId) : null;
+    await broadcast({ event: 'task:deleted', boardId, data: { taskId: task._id } });
     try {
       const activity = await Activity.create({ boardId, userId: user.id, action: 'task.deleted', details: `${user.email} deleted task "${task.title}"` });
       // broadcast activity with populated user info
       const populatedActivity = await Activity.findById(activity._id).populate('userId', 'name email');
-      await fetch(`${SOCKET_SERVER}/broadcast`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event: 'activity:created', boardId, data: populatedActivity }),
-      });
+      await broadcast({ event: 'activity:created', boardId, data: populatedActivity });
     } catch (e) {
       logger.error(e, 'activity create failed');
     }
   } catch (err) {
-    logger.error(err, 'socket broadcast failed');
+    logger.error(err, 'broadcast failed');
   }
 
   return NextResponse.json({ success: true }, { status: 200 });

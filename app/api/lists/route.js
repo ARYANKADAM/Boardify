@@ -7,6 +7,7 @@ import jwt from 'jsonwebtoken';
 import logger from '../../../lib/logger';
 import Board from '../../../models/Board';
 import { canPerform } from '../../../lib/permissions';
+import { broadcast } from '../../../lib/broadcast';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -46,7 +47,16 @@ export async function GET(req) {
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 
-  const lists = await List.find({ boardId }).populate('tasks');
+  // FIX: nested populate so each task's assignedTo array resolves to
+  // { _id, name, avatar, email } instead of raw ObjectIds — needed to
+  // render assignee avatars on task cards.
+  const lists = await List.find({ boardId }).populate({
+    path: 'tasks',
+    populate: {
+      path: 'assignedTo',
+      select: 'name email avatar'
+    }
+  });
   return NextResponse.json({ lists }, { status: 200 });
 }
 
@@ -71,12 +81,8 @@ export async function POST(req) {
     const activity = await Activity.create({ boardId, userId: user.id, action: 'list.created', details: `${user.email} created list "${title}"` });
     // broadcast activity with populated user info
     const populatedActivity = await Activity.findById(activity._id).populate('userId', 'name email');
-    const SOCKET_SERVER = process.env.SOCKET_SERVER_URL || 'http://localhost:4001';
-    await fetch(`${SOCKET_SERVER}/broadcast`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event: 'activity:created', boardId, data: populatedActivity }),
-    });
+    // FIX: was calling the dead socket-server /broadcast endpoint — now uses Firebase RTDB
+    await broadcast({ event: 'activity:created', boardId, data: populatedActivity });
   } catch (e) { logger.error(e, 'activity create failed'); }
   return NextResponse.json({ list }, { status: 201 });
 }

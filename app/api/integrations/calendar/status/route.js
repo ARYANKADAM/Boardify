@@ -10,7 +10,8 @@ export async function GET(request) {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.userId);
+    // FIX: token is signed with `id`, not `userId`
+    const user = await User.findById(decoded.id);
 
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });

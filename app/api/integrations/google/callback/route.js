@@ -37,22 +37,13 @@ export async function GET(request) {
 
     const tokenData = await tokenResponse.json();
 
-    // Get user info from Google
-    const userResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-      headers: {
-        'Authorization': `Bearer ${tokenData.access_token}`
-      }
-    });
-
-    if (!userResponse.ok) {
-      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/settings?error=user_info_failed`);
-    }
-
-    const googleUser = await userResponse.json();
-
-    // Find user by email (assuming user is logged in and we can get their ID from session/token)
-    // For now, we'll redirect to settings and let the frontend handle the connection
-    // In a real implementation, you'd want to store the tokens securely associated with the user
+    // NOTE: Previously this fetched the user's Google profile via
+    // https://www.googleapis.com/oauth2/v2/userinfo, but that endpoint requires
+    // 'profile'/'email'/'openid' scopes which were never requested (only
+    // calendar.events was requested), so it always failed with user_info_failed.
+    // That data was never actually used below, so it's removed entirely —
+    // the logged-in user is already known via the JWT on the frontend, which
+    // handles associating these tokens with the correct account via /connect.
 
     const redirectUrl = new URL(`${process.env.NEXT_PUBLIC_APP_URL}/settings`);
     redirectUrl.searchParams.set('google_connected', 'true');

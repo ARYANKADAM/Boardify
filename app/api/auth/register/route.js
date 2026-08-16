@@ -9,8 +9,9 @@ const JWT_SECRET = process.env.JWT_SECRET;
 export async function POST(req) {
   await connectToDatabase();
   const { name, email, password, avatar, role } = await req.json();
+  const normalizedEmail = email?.toLowerCase().trim();
   if (!name || !email || !password) return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
-  const existing = await User.findOne({ email });
+  const existing = await User.findOne({ normalizedEmail });
   if (existing) return NextResponse.json({ error: 'Email already exists' }, { status: 409 });
   const hashed = await bcrypt.hash(password, 10);
 

@@ -6,6 +6,7 @@ import Activity from '../../../models/Activity';
 import jwt from 'jsonwebtoken';
 import logger from '../../../lib/logger';
 import { canPerform } from '../../../lib/permissions';
+import { broadcast } from '../../../lib/broadcast';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -28,11 +29,12 @@ export async function POST(req) {
   if (!listId || !title) return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
   // permission: members (and owner/admin) may create tasks
   let list = null;
+  let boardId = null;
   try {
     list = await List.findById(listId);
     if (!list) return NextResponse.json({ error: 'List not found' }, { status: 404 });
     const Board = (await import('../../../models/Board')).default;
-    const boardId = list ? String(list.boardId) : null;
+    boardId = list ? String(list.boardId) : null;
     if (!boardId) return NextResponse.json({ error: 'Board not found' }, { status: 404 });
     const board = await Board.findById(boardId);
     if (!board) return NextResponse.json({ error: 'Board not found' }, { status: 404 });
@@ -51,30 +53,18 @@ export async function POST(req) {
   } catch (e) {
     logger.error(e, 'failed to push task into list');
   }
-  // Broadcast to socket server (best-effort)
+  // Broadcast to Firebase RTDB (best-effort)
   try {
-    const SOCKET_SERVER = process.env.SOCKET_SERVER_URL || 'http://localhost:4001';
-    // fetch list to determine boardId
-    const list = await List.findById(listId);
-    const boardId = list ? String(list.boardId) : null;
-    await fetch(`${SOCKET_SERVER}/broadcast`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event: 'task:created', boardId, data: { task } }),
-    });
+    await broadcast({ event: 'task:created', boardId, data: { task } });
   } catch (err) {
-    logger.error(err, 'socket broadcast failed');
+    logger.error(err, 'broadcast failed');
   }
   // Create activity
   try {
     const activity = await Activity.create({ boardId, userId: user.id, action: 'task.created', details: `${user.email} created task "${title}"` });
     // broadcast activity with populated user info
     const populatedActivity = await Activity.findById(activity._id).populate('userId', 'name email');
-    await fetch(`${SOCKET_SERVER}/broadcast`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event: 'activity:created', boardId, data: populatedActivity }),
-    });
+    await broadcast({ event: 'activity:created', boardId, data: populatedActivity });
   } catch (err) {
     logger.error(err, 'activity create failed');
   }

@@ -19,6 +19,8 @@
     "bcryptjs": "^3.0.3",
     "dotenv": "^16.1.4",
     "express": "^5.1.0",
+    "firebase": "^12.17.1",
+    "firebase-admin": "^14.2.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.20.0",
     "multer": "^2.0.2",
@@ -29,8 +31,8 @@
     "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
-    "concurrently": "^8.0.0",
     "@tailwindcss/postcss": "^4",
+    "concurrently": "^8.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.0.3",
     "tailwindcss": "^4"
